@@ -129,6 +129,28 @@ public class CrystalManager : MonoBehaviour
     }
     
     /// <summary>
+    /// Получить питомца, который добывает указанный кристалл
+    /// </summary>
+    public static PetBehavior GetPetMiningCrystal(Crystal crystal)
+    {
+        if (crystal == null || !occupiedCrystals.ContainsKey(crystal))
+        {
+            return null;
+        }
+        
+        PetBehavior pet = occupiedCrystals[crystal];
+        
+        // Очистить ссылку, если питомец уничтожен
+        if (pet == null)
+        {
+            occupiedCrystals.Remove(crystal);
+            return null;
+        }
+        
+        return pet;
+    }
+    
+    /// <summary>
     /// Найти ближайший кристалл к указанной позиции, который не занят другими питомцами
     /// </summary>
     public static Crystal GetNearestCrystal(Vector3 position, PetBehavior requestingPet = null)

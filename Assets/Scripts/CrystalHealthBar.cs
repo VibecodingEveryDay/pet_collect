@@ -146,6 +146,7 @@ public class CrystalHealthBar : MonoBehaviour
         healthBarFill.color = new Color(0f, 1f, 0.2f, 1f); // Яркий зеленый в стиле Roblox
         healthBarFill.type = Image.Type.Filled;
         healthBarFill.fillMethod = Image.FillMethod.Horizontal;
+        healthBarFill.fillAmount = 1f; // Установить начальное значение на 100%
         
         RectTransform fillRect = fillObj.GetComponent<RectTransform>();
         fillRect.anchorMin = Vector2.zero;
@@ -153,12 +154,12 @@ public class CrystalHealthBar : MonoBehaviour
         fillRect.sizeDelta = Vector2.zero;
         fillRect.anchoredPosition = Vector2.zero;
         
-        // Создать текст для отображения HP (100/100) - над health bar
+        // Создать текст для отображения HP (100/100) - внутри health bar
         GameObject textObj = new GameObject("HealthText");
-        textObj.transform.SetParent(canvasObj.transform, false);
+        textObj.transform.SetParent(backgroundObj.transform, false); // Сделать дочерним элементом background, чтобы был внутри бара
         healthBarText = textObj.AddComponent<Text>();
         healthBarText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        healthBarText.fontSize = 14; // Уменьшен размер текста
+        healthBarText.fontSize = 12; // Немного уменьшен размер текста для размещения внутри бара
         healthBarText.fontStyle = FontStyle.Bold;
         healthBarText.color = Color.white;
         healthBarText.alignment = TextAnchor.MiddleCenter;
@@ -168,10 +169,10 @@ public class CrystalHealthBar : MonoBehaviour
         healthBarText.verticalOverflow = VerticalWrapMode.Overflow;
         
         RectTransform textRect = textObj.GetComponent<RectTransform>();
-        textRect.anchorMin = new Vector2(0.5f, 0.5f);
-        textRect.anchorMax = new Vector2(0.5f, 0.5f);
-        textRect.sizeDelta = new Vector2(healthBarWidth, 25f);
-        textRect.anchoredPosition = new Vector2(0f, 18f); // Над health bar (было -5f под баром)
+        textRect.anchorMin = Vector2.zero; // Привязать к левому нижнему углу background
+        textRect.anchorMax = Vector2.one; // Привязать к правому верхнему углу background
+        textRect.sizeDelta = Vector2.zero; // Заполнить весь background
+        textRect.anchoredPosition = Vector2.zero; // Центр внутри бара
         
         // Добавить обводку тексту через Outline компонент для лучшей читаемости
         Outline textOutline = textObj.AddComponent<Outline>();
@@ -189,6 +190,13 @@ public class CrystalHealthBar : MonoBehaviour
     {
         targetCrystal = crystalTransform;
         currentDisplayPercent = 1f; // Инициализировать с полным HP
+        
+        // Убедиться, что fillAmount установлен правильно при инициализации
+        if (healthBarFill != null)
+        {
+            healthBarFill.fillAmount = 1f;
+            UpdateHealthBarColor(1f);
+        }
     }
     
     /// <summary>
@@ -201,71 +209,90 @@ public class CrystalHealthBar : MonoBehaviour
         // Установить целевой процент для анимации
         targetHealthPercent = healthPercent;
         
+        // Сразу обновить fillAmount и цвет (без ожидания анимации)
+        if (healthBarFill != null)
+        {
+            healthBarFill.fillAmount = healthPercent;
+            UpdateHealthBarColor(healthPercent);
+        }
+        
+        // Обновить текст сразу
+        if (healthBarText != null)
+        {
+            healthBarText.text = $"{Mathf.CeilToInt(health)} / {Mathf.CeilToInt(maxHealth)}";
+        }
+        
+        // Обновить текущий отображаемый процент
+        currentDisplayPercent = healthPercent;
+        
         // Если анимация уже идет, остановить её
         if (healthAnimationCoroutine != null)
         {
             StopCoroutine(healthAnimationCoroutine);
         }
         
-        // Запустить анимацию уменьшения HP бара (10 шагов)
+        // Запустить плавную анимацию уменьшения HP бара (опционально, для визуального эффекта)
         healthAnimationCoroutine = StartCoroutine(AnimateHealthBar(health, maxHealth));
     }
     
     /// <summary>
-    /// Анимация уменьшения HP бара в 10 шагов
+    /// Обновить цвет health bar в зависимости от процента HP
+    /// </summary>
+    private void UpdateHealthBarColor(float healthPercent)
+    {
+        if (healthBarFill == null) return;
+        
+        // Зеленый > 60%, желтый 30-60%, красный < 30%
+        if (healthPercent > 0.6f)
+        {
+            healthBarFill.color = new Color(0f, 1f, 0.2f, 1f); // Яркий зеленый
+        }
+        else if (healthPercent > 0.3f)
+        {
+            healthBarFill.color = new Color(1f, 0.8f, 0f, 1f); // Яркий желтый/оранжевый
+        }
+        else
+        {
+            healthBarFill.color = new Color(1f, 0.2f, 0.2f, 1f); // Яркий красный
+        }
+    }
+    
+    /// <summary>
+    /// Анимация уменьшения HP бара в 10 шагов (опциональная плавная анимация)
     /// </summary>
     private System.Collections.IEnumerator AnimateHealthBar(float targetHealth, float maxHealth)
     {
         float startPercent = currentDisplayPercent;
         float targetPercent = Mathf.Clamp01(targetHealth / maxHealth);
         
-        // Если изменение очень маленькое, обновить сразу без анимации
+        // Если изменение очень маленькое, не запускать анимацию
         if (Mathf.Abs(startPercent - targetPercent) < 0.01f)
         {
-            currentDisplayPercent = targetPercent;
-            if (healthBarFill != null)
-            {
-                healthBarFill.fillAmount = currentDisplayPercent;
-            }
-            if (healthBarText != null)
-            {
-                healthBarText.text = $"{Mathf.CeilToInt(targetHealth)} / {Mathf.CeilToInt(maxHealth)}";
-            }
             healthAnimationCoroutine = null;
             yield break;
         }
         
-        int steps = 10;
-        float stepDuration = 0.05f; // Длительность одного шага (50ms)
+        // Для плавной анимации используем меньше шагов и более быстрое обновление
+        int steps = 5;
+        float stepDuration = 0.02f; // Длительность одного шага (20ms)
         
         for (int i = 0; i <= steps; i++)
         {
             float t = (float)i / steps;
-            currentDisplayPercent = Mathf.Lerp(startPercent, targetPercent, t);
+            float animatedPercent = Mathf.Lerp(startPercent, targetPercent, t);
             
+            // Обновляем fillAmount с плавной анимацией
             if (healthBarFill != null)
             {
-                healthBarFill.fillAmount = currentDisplayPercent;
-                
-                // Яркие цвета в стиле Roblox в зависимости от HP
-                if (currentDisplayPercent > 0.6f)
-                {
-                    healthBarFill.color = new Color(0f, 1f, 0.2f, 1f); // Яркий зеленый
-                }
-                else if (currentDisplayPercent > 0.3f)
-                {
-                    healthBarFill.color = new Color(1f, 0.8f, 0f, 1f); // Яркий желтый/оранжевый
-                }
-                else
-                {
-                    healthBarFill.color = new Color(1f, 0.2f, 0.2f, 1f); // Яркий красный
-                }
+                healthBarFill.fillAmount = animatedPercent;
+                // Цвет уже обновлен в UpdateHealthBar, но можно обновлять и здесь для плавности
+                UpdateHealthBarColor(animatedPercent);
             }
             
             // Обновить текст с текущим отображаемым HP
             if (healthBarText != null)
             {
-                float displayHealth = currentDisplayPercent * maxHealth;
+                float displayHealth = animatedPercent * maxHealth;
                 healthBarText.text = $"{Mathf.CeilToInt(displayHealth)} / {Mathf.CeilToInt(maxHealth)}";
             }
             
@@ -277,6 +304,7 @@ public class CrystalHealthBar : MonoBehaviour
         if (healthBarFill != null)
         {
             healthBarFill.fillAmount = currentDisplayPercent;
+            UpdateHealthBarColor(currentDisplayPercent);
         }
         if (healthBarText != null)
         {

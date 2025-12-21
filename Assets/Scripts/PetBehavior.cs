@@ -9,9 +9,14 @@ public class PetBehavior : MonoBehaviour
     [SerializeField] private float moveSpeed = 3f;
     [SerializeField] private float searchInterval = 1f; // Интервал поиска кристаллов в секундах
     [SerializeField] private float miningDistance = 1f; // Расстояние для начала добычи (уменьшено в два раза)
+    [SerializeField] private float walkSwayAngle = 12f; // Максимальный угол поворота влево-вправо при ходьбе (градусы)
+    [SerializeField] private float walkSwaySpeed = 6f; // Скорость изменения поворота при ходьбе
     
     [Header("Настройки высоты")]
     [SerializeField] private float fixedYPosition = 0f; // Фиксированная позиция Y для питомцев
+    
+    [Header("Эффекты")]
+    [SerializeField] private GameObject miningEffectPrefab; // Префаб эффекта электричества при добыче
     
     private PetData petData;
     private Crystal targetCrystal;
@@ -26,8 +31,16 @@ public class PetBehavior : MonoBehaviour
     // Позиция и направление при начале добычи
     private Vector3 miningPosition;
     private Vector3 miningDirection;
+    private Vector3 crystalMiningPosition; // Позиция кристалла в момент начала добычи (для поворота)
     private bool positionLocked = false; // Флаг блокировки позиции
     private Rigidbody petRigidbody; // Кэш Rigidbody для отключения физики во время добычи
+    
+    // Для имитации естественной ходьбы (повороты влево-вправо)
+    private float walkSwayOffset = 0f; // Текущее смещение поворота
+    private float walkSwayTarget = 0f; // Целевое смещение поворота
+    
+    // Эффект добычи
+    private GameObject miningEffect; // Эффект электричества во время добычи
     
     /// <summary>
     /// Инициализировать поведение питомца
@@ -151,15 +164,21 @@ public class PetBehavior : MonoBehaviour
         miningPosition = transform.position;
         miningPosition.y = fixedYPosition;
         
+        // Сохранить позицию кристалла в момент начала добычи (до тряски)
         if (targetCrystal != null)
         {
-            miningDirection = new Vector3(targetCrystal.transform.position.x - transform.position.x, 0, targetCrystal.transform.position.z - transform.position.z).normalized;
+            crystalMiningPosition = targetCrystal.transform.position;
+            miningDirection = new Vector3(crystalMiningPosition.x - transform.position.x, 0, crystalMiningPosition.z - transform.position.z).normalized;
         }
         
         if (miningDirection == Vector3.zero)
         {
             miningDirection = transform.forward;
         }
+        
+        // Сбросить случайный поворот при остановке для добычи
+        walkSwayOffset = 0f;
+        walkSwayTarget = 0f;
         
         // Отключить физику, если есть Rigidbody
         if (petRigidbody != null)
@@ -172,6 +191,9 @@ public class PetBehavior : MonoBehaviour
         // Заблокировать позицию
         positionLocked = true;
         isMining = true;
+        
+        // Создать эффект электричества при добыче
+        CreateMiningEffect();
     }
     
     /// <summary>
@@ -182,10 +204,83 @@ public class PetBehavior : MonoBehaviour
         positionLocked = false;
         isMining = false;
         
+        // Уничтожить эффект добычи
+        DestroyMiningEffect();
+        
         // Включить физику обратно, если нужно (но оставляем kinematic для контроля)
         if (petRigidbody != null)
         {
             petRigidbody.isKinematic = true; // Оставляем kinematic для полного контроля
+        }
+    }
+    
+    /// <summary>
+    /// Проверить, добывает ли питомец сейчас кристалл
+    /// </summary>
+    public bool IsMining()
+    {
+        return isMining && positionLocked;
+    }
+    
+    /// <summary>
+    /// Создать эффект электричества при добыче кристалла
+    /// </summary>
+    private void CreateMiningEffect()
+    {
+        // Уничтожить предыдущий эффект, если есть
+        DestroyMiningEffect();
+        
+        if (targetCrystal == null)
+        {
+            return;
+        }
+        
+        // Загрузить префаб эффекта
+        GameObject effectPrefab = miningEffectPrefab;
+        
+        // Если не назначен в инспекторе, попробовать загрузить из Resources
+        if (effectPrefab == null)
+        {
+            effectPrefab = Resources.Load<GameObject>("vfx_Electricity_01");
+        }
+        
+        // Если не найдено в Resources, попробовать загрузить через AssetDatabase (только в редакторе)
+        #if UNITY_EDITOR
+        if (effectPrefab == null)
+        {
+            effectPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Downloads/GabrielAguiarProductions/FreeQuickEffectsVol1/Prefabs/vfx_Electricity_01.prefab");
+        }
+        #endif
+        
+        if (effectPrefab == null)
+        {
+            Debug.LogWarning("[PetBehavior] Не удалось загрузить эффект vfx_Electricity_01. Назначьте префаб в инспекторе или поместите его в папку Resources.");
+            return;
+        }
+        
+        // Позиция эффекта по центру кристалла
+        Vector3 effectPosition = crystalMiningPosition;
+        
+        // Создать эффект по центру кристалла
+        miningEffect = Instantiate(effectPrefab, effectPosition, Quaternion.identity);
+        
+        // Сделать эффект дочерним объектом кристалла, чтобы он следовал за ним
+        if (targetCrystal != null)
+        {
+            miningEffect.transform.SetParent(targetCrystal.transform);
+            miningEffect.transform.localPosition = Vector3.zero; // Центр кристалла
+        }
+    }
+    
+    /// <summary>
+    /// Уничтожить эффект добычи
+    /// </summary>
+    private void DestroyMiningEffect()
+    {
+        if (miningEffect != null)
+        {
+            Destroy(miningEffect);
+            miningEffect = null;
         }
     }
     
@@ -257,10 +352,16 @@ public class PetBehavior : MonoBehaviour
             return;
         }
         
-        // Повернуть к кристаллу (сохраняя поворот по X для правильной ориентации)
+        // Вычислить базовый поворот к кристаллу (сохраняя поворот по X для правильной ориентации)
         // Разворачиваем на 180 градусов, чтобы питомец шёл лицом, а не спиной
-        float yRotation = Quaternion.LookRotation(direction).eulerAngles.y + 180f;
-        transform.rotation = Quaternion.Euler(90, yRotation, 0);
+        float baseYRotation = Quaternion.LookRotation(direction).eulerAngles.y + 180f;
+        
+        // Обновить случайный поворот для имитации ходьбы
+        UpdateWalkSway();
+        
+        // Применить поворот с учетом случайного отклонения
+        float finalYRotation = baseYRotation + walkSwayOffset;
+        transform.rotation = Quaternion.Euler(90, finalYRotation, 0);
         
         // Вычислить максимальное расстояние, на которое можно двигаться
         // Остановиться точно на miningDistance
@@ -285,6 +386,22 @@ public class PetBehavior : MonoBehaviour
     
     
     /// <summary>
+    /// Обновить случайный поворот для имитации естественной ходьбы
+    /// </summary>
+    private void UpdateWalkSway()
+    {
+        // Если достигли целевого смещения, выбрать новое случайное значение
+        if (Mathf.Abs(walkSwayOffset - walkSwayTarget) < 0.1f)
+        {
+            // Выбрать новое случайное целевое смещение от -walkSwayAngle до +walkSwayAngle
+            walkSwayTarget = Random.Range(-walkSwayAngle, walkSwayAngle);
+        }
+        
+        // Плавно переходить к целевому смещению
+        walkSwayOffset = Mathf.Lerp(walkSwayOffset, walkSwayTarget, Time.deltaTime * walkSwaySpeed);
+    }
+    
+    /// <summary>
     /// Добывать кристалл
     /// </summary>
     private void MineCrystal()
@@ -300,6 +417,8 @@ public class PetBehavior : MonoBehaviour
             return;
         }
         
+        // Позиция эффекта обновляется автоматически, так как он дочерний объект кристалла
+        
         // НЕ устанавливать позицию здесь - это делается в LateUpdate
         // Только добывать кристалл
         
@@ -310,13 +429,26 @@ public class PetBehavior : MonoBehaviour
         // Нанести урон кристаллу
         targetCrystal.TakeDamage(damage);
         
-        // Использовать сохранённое направление, с которого питомец пришёл
-        // Повернуться к кристаллу (сохраняя поворот по X)
-        // Разворачиваем на 180 градусов, чтобы питомец шёл лицом, а не спиной
-        if (miningDirection != Vector3.zero)
+        // Повернуться к кристаллу (используем сохраненную позицию, а не текущую трясущуюся)
+        if (targetCrystal != null)
         {
-            float yRotation = Quaternion.LookRotation(miningDirection).eulerAngles.y + 180f;
-            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(90, yRotation, 0), Time.deltaTime * 5f);
+            // Использовать сохраненную позицию кристалла в момент начала добычи, чтобы питомец не трясся вместе с кристаллом
+            Vector3 directionToCrystal = crystalMiningPosition - transform.position;
+            directionToCrystal.y = 0; // Игнорировать вертикальную составляющую
+            
+            if (directionToCrystal != Vector3.zero)
+            {
+                // Вычислить поворот к кристаллу
+                Quaternion targetRotation = Quaternion.LookRotation(directionToCrystal.normalized);
+                
+                // Сохранить текущий поворот по X и Z, изменить только Y
+                Vector3 currentEuler = transform.rotation.eulerAngles;
+                Vector3 targetEuler = targetRotation.eulerAngles;
+                
+                // Плавно повернуть к кристаллу
+                float yRotation = Mathf.LerpAngle(currentEuler.y, targetEuler.y, Time.deltaTime * 5f);
+                transform.rotation = Quaternion.Euler(currentEuler.x, yRotation, currentEuler.z);
+            }
         }
         
         // Добавлять монеты каждую секунду добычи
@@ -363,6 +495,9 @@ public class PetBehavior : MonoBehaviour
         {
             CrystalManager.UnregisterPetMining(targetCrystal, this);
         }
+        
+        // Уничтожить эффект добычи при уничтожении питомца
+        DestroyMiningEffect();
         
         // Очистка при уничтожении
         targetCrystal = null;

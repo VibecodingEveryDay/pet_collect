@@ -13,14 +13,25 @@ public class Crystal : MonoBehaviour
     [SerializeField] private bool autoAddCollider = false; // Отключено по умолчанию, создается через UpdateCollider()
     [SerializeField] private ColliderType colliderType = ColliderType.MeshCollider;
     
+    [Header("Эффект тряски при добыче")]
+    [SerializeField] private float shakeIntensity = 0.05f; // Интенсивность тряски
+    [SerializeField] private float shakeSpeed = 30f; // Скорость тряски (частота)
+    
     private enum ColliderType
     {
         MeshCollider,
         BoxCollider
     }
     
+    // Для эффекта тряски
+    private Vector3 originalPosition; // Исходная позиция кристалла
+    private float shakeTime = 0f; // Время для генерации случайных значений тряски
+    
     private void Start()
     {
+        // Сохранить исходную позицию для эффекта тряски
+        originalPosition = transform.position;
+        
         // Инициализировать HP из CrystalUpgradeSystem
         maxHealth = CrystalUpgradeSystem.GetCurrentMaxHealth();
         currentHealth = maxHealth;
@@ -43,6 +54,27 @@ public class Crystal : MonoBehaviour
         }
         catch (System.Exception e)
         {
+        }
+    }
+    
+    private void Update()
+    {
+        // Обновить исходную позицию (на случай, если кристалл переместился)
+        if (!IsBeingMined())
+        {
+            originalPosition = transform.position;
+        }
+        
+        // Применить эффект тряски, если кристалл добывается
+        if (IsBeingMined())
+        {
+            ApplyShakeEffect();
+        }
+        else
+        {
+            // Вернуть к исходной позиции, если не добывается
+            transform.position = originalPosition;
+            shakeTime = 0f;
         }
     }
     
@@ -251,6 +283,52 @@ public class Crystal : MonoBehaviour
     public bool IsAlive()
     {
         return currentHealth > 0;
+    }
+    
+    /// <summary>
+    /// Проверить, добывается ли кристалл сейчас (только когда питомец действительно добывает, а не просто идет к кристаллу)
+    /// </summary>
+    private bool IsBeingMined()
+    {
+        if (!IsAlive())
+        {
+            return false;
+        }
+        
+        // Проверить через CrystalManager, что кристалл занят
+        if (!CrystalManager.IsCrystalOccupied(this))
+        {
+            return false;
+        }
+        
+        // Получить питомца, который добывает этот кристалл
+        PetBehavior miningPet = CrystalManager.GetPetMiningCrystal(this);
+        if (miningPet == null)
+        {
+            return false;
+        }
+        
+        // Проверить, что питомец действительно добывает (isMining = true)
+        // Используем рефлексию или публичный метод для проверки состояния добычи
+        return miningPet.IsMining();
+    }
+    
+    /// <summary>
+    /// Применить эффект тряски к кристаллу
+    /// </summary>
+    private void ApplyShakeEffect()
+    {
+        // Увеличить время для генерации случайных значений
+        shakeTime += Time.deltaTime * shakeSpeed;
+        
+        // Генерировать случайные смещения в трех направлениях
+        float offsetX = Mathf.Sin(shakeTime * 1.3f) * shakeIntensity;
+        float offsetY = Mathf.Cos(shakeTime * 1.7f) * shakeIntensity;
+        float offsetZ = Mathf.Sin(shakeTime * 1.1f) * shakeIntensity;
+        
+        // Применить смещение к исходной позиции
+        Vector3 shakeOffset = new Vector3(offsetX, offsetY, offsetZ);
+        transform.position = originalPosition + shakeOffset;
     }
 }
 
