@@ -1,0 +1,20 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="main-container" class="main-container">
+        <!-- Счетчик монет слева сверху -->
+        <ui:VisualElement name="coin-counter" class="coin-counter">
+            <ui:VisualElement name="coin-icon" class="coin-icon" />
+            <ui:Label name="coin-amount" class="coin-amount" text="0" />
+        </ui:VisualElement>
+        
+        <!-- Кнопка магазина слева от рюкзака -->
+        <ui:Button name="shop-button" class="shop-button">
+            <ui:VisualElement name="shop-icon" class="shop-icon" />
+        </ui:Button>
+        
+        <!-- Кнопка рюкзака в правом верхнем углу -->
+        <ui:Button name="backpack-button" class="backpack-button">
+            <ui:VisualElement name="backpack-icon" class="backpack-icon" />
+        </ui:Button>
+    </ui:VisualElement>
+</ui:UXML>
+

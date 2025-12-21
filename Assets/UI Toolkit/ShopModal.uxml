@@ -1,0 +1,26 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="modal-overlay" class="modal-overlay">
+        <ui:VisualElement name="modal-container" class="modal-container shop-modal-container">
+            <ui:VisualElement name="shop-content" class="shop-content">
+                <ui:Label text="Магазин" class="shop-title" />
+                
+                <ui:VisualElement name="shop-buttons" class="shop-buttons">
+                    <!-- Кнопка покупки яйца -->
+                    <ui:Button name="buy-egg-button" class="shop-item-button">
+                        <ui:Label name="egg-emoji" class="egg-emoji" text="🥚" />
+                        <ui:Label text="Купить яйцо" class="shop-item-label" />
+                        <ui:Label name="egg-price" class="shop-item-price" text="100 💎" />
+                    </ui:Button>
+                    
+                    <!-- Кнопка улучшения кристаллов -->
+                    <ui:Button name="upgrade-crystal-button" class="shop-item-button">
+                        <ui:VisualElement name="crystal-icon" class="crystal-icon" />
+                        <ui:Label text="Улучшить кристаллы" class="shop-item-label" />
+                        <ui:Label name="crystal-upgrade-price" class="shop-item-price" text="200 💎" />
+                    </ui:Button>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
+

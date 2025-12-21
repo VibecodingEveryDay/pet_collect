@@ -1,0 +1,26 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="modal-overlay" class="modal-overlay">
+        <ui:VisualElement name="modal-container" class="modal-container">
+            <!-- Контейнер для двух колонок -->
+            <ui:VisualElement name="content-wrapper" class="content-wrapper">
+                <!-- Блок 1: Инвентарь питомцев с пагинацией (3/4) -->
+                <ui:VisualElement name="inventory-section" class="inventory-section">
+                    <ui:Label text="Все питомцы" class="section-title" />
+                    <ui:VisualElement name="pets-grid" class="pets-grid" />
+                    <ui:VisualElement name="pagination-controls" class="pagination-controls">
+                        <ui:Button name="prev-page-button" class="page-button" text="◄" />
+                        <ui:Label name="page-info" class="page-info" text="Страница 1 из 3" />
+                        <ui:Button name="next-page-button" class="page-button" text="►" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                
+                <!-- Блок 2: Активные питомцы (1/4) -->
+                <ui:VisualElement name="active-pets-section" class="active-pets-section">
+                    <ui:Label text="Активные питомцы" class="section-title" />
+                    <ui:VisualElement name="active-pets-grid" class="active-pets-grid" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
+

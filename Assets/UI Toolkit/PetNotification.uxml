@@ -1,0 +1,6 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="notification-container" class="pet-notification">
+        <ui:Label name="notification-text" class="pet-notification-text" text="Вы выиграли питомца!" />
+    </ui:VisualElement>
+</ui:UXML>
+

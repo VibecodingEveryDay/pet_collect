@@ -1,0 +1,12 @@
+{
+    "files.exclude": {
+      "**/*.meta": true
+    },
+    "search.exclude": {
+      "**/*.meta": true
+    },
+    "files.associations": {
+        "*.uss": "css",
+        "*.uxml": "xml"
+    }
+}
