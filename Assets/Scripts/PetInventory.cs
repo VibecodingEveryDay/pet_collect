@@ -69,6 +69,8 @@ public class PetInventory : MonoBehaviour
             pets.Add(petData);
             Debug.Log($"Питомец добавлен в инвентарь: {petData.petName} ({petData.rarity})");
             OnPetAdded?.Invoke(petData);
+            // Автоматическое сохранение при добавлении питомца
+            GameSaveManager.Instance?.SaveGameData();
         }
     }
     
@@ -100,6 +102,8 @@ public class PetInventory : MonoBehaviour
         {
             pets.Remove(petData);
             Debug.Log($"Питомец удален из инвентаря: {petData.petName}");
+            // Автоматическое сохранение при удалении питомца
+            GameSaveManager.Instance?.SaveGameData();
         }
     }
     
@@ -149,7 +153,7 @@ public class PetInventory : MonoBehaviour
     }
     
     /// <summary>
-    /// Очистить инвентарь
+    /// Очистить инвентарь (без сохранения, для использования при загрузке)
     /// </summary>
     public void ClearInventory()
     {
@@ -157,6 +161,18 @@ public class PetInventory : MonoBehaviour
         {
             pets.Clear();
             Debug.Log("Инвентарь питомцев очищен");
+        }
+    }
+    
+    /// <summary>
+    /// Добавить питомца без сохранения (для использования при загрузке)
+    /// </summary>
+    public void AddPetWithoutSave(PetData petData)
+    {
+        if (petData != null)
+        {
+            pets.Add(petData);
+            Debug.Log($"Питомец добавлен в инвентарь (без сохранения): {petData.petName} ({petData.rarity})");
         }
     }
 }

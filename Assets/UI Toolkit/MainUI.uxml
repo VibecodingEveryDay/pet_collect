@@ -15,6 +15,18 @@
         <ui:Button name="backpack-button" class="backpack-button">
             <ui:VisualElement name="backpack-icon" class="backpack-icon" />
         </ui:Button>
+        
+        <!-- Кнопка прыжка справа внизу (только для мобильных устройств) -->
+        <ui:Button name="jump-button" class="jump-button" />
+        
+        <!-- Панель подсказок сверху посередине -->
+        <ui:VisualElement name="hint-panel" class="hint-panel">
+            <ui:Label name="hint-text" class="hint-text" text="" />
+            <ui:VisualElement name="hint-icons-container" class="hint-icons-container">
+                <ui:VisualElement name="hint-icon-1" class="hint-icon" />
+                <ui:VisualElement name="hint-icon-2" class="hint-icon" />
+            </ui:VisualElement>
+        </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>
 

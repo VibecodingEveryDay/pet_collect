@@ -92,17 +92,20 @@ public class EggHatchingAnimation : MonoBehaviour
     /// </summary>
     private void LoadLightningEffect()
     {
-#if UNITY_EDITOR
-        // В редакторе используем AssetDatabase
-        string[] guids = UnityEditor.AssetDatabase.FindAssets("vfx_Lightning_02 t:GameObject");
-        if (guids.Length > 0)
-        {
-            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
-            lightningEffectPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
-        }
-#else
-        // В билде используем Resources
+        // Сначала пробуем Resources (работает и в редакторе, и в билде)
         lightningEffectPrefab = Resources.Load<GameObject>("vfx_Lightning_02");
+        
+#if UNITY_EDITOR
+        // В редакторе, если не нашли в Resources, пробуем AssetDatabase
+        if (lightningEffectPrefab == null)
+        {
+            string[] guids = UnityEditor.AssetDatabase.FindAssets("vfx_Lightning_02 t:GameObject");
+            if (guids.Length > 0)
+            {
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
+                lightningEffectPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            }
+        }
 #endif
     }
     

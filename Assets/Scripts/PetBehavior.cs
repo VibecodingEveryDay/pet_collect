@@ -1,4 +1,5 @@
-    using UnityEngine;
+using UnityEngine;
+using System.Collections;
 
 /// <summary>
 /// Компонент для поведения питомца в мире
@@ -9,8 +10,6 @@ public class PetBehavior : MonoBehaviour
     [SerializeField] private float moveSpeed = 3f;
     [SerializeField] private float searchInterval = 1f; // Интервал поиска кристаллов в секундах
     [SerializeField] private float miningDistance = 1f; // Расстояние для начала добычи (уменьшено в два раза)
-    [SerializeField] private float walkSwayAngle = 12f; // Максимальный угол поворота влево-вправо при ходьбе (градусы)
-    [SerializeField] private float walkSwaySpeed = 6f; // Скорость изменения поворота при ходьбе
     
     [Header("Настройки высоты")]
     [SerializeField] private float fixedYPosition = 0f; // Фиксированная позиция Y для питомцев
@@ -35,12 +34,19 @@ public class PetBehavior : MonoBehaviour
     private bool positionLocked = false; // Флаг блокировки позиции
     private Rigidbody petRigidbody; // Кэш Rigidbody для отключения физики во время добычи
     
-    // Для имитации естественной ходьбы (повороты влево-вправо)
-    private float walkSwayOffset = 0f; // Текущее смещение поворота
-    private float walkSwayTarget = 0f; // Целевое смещение поворота
     
     // Эффект добычи
     private GameObject miningEffect; // Эффект электричества во время добычи
+    
+    // Для правильного вращения визуальной модели
+    private Transform visualModelTransform; // Transform визуальной модели (дочерний объект с рендерером)
+    private Vector3 visualModelOffset; // Смещение визуальной модели относительно корня
+    
+    // Система ускорения
+    private bool isBoosted = false; // Флаг, что питомец ускорен
+    private float boostEndTime = 0f; // Время окончания эффекта ускорения
+    private GameObject speedBoostEffect; // VFX эффект ускорения
+    private Vector3 originalScale; // Исходный размер питомца
     
     /// <summary>
     /// Инициализировать поведение питомца
@@ -65,6 +71,72 @@ public class PetBehavior : MonoBehaviour
         Vector3 pos = transform.position;
         pos.y = fixedYPosition;
         transform.position = pos;
+        
+        // Найти визуальную модель (дочерний объект с рендерером)
+        FindVisualModel();
+        
+        // Сохранить исходный размер после небольшой задержки (чтобы модель успела загрузиться)
+        StartCoroutine(SaveOriginalScale());
+    }
+    
+    /// <summary>
+    /// Сохранить исходный размер питомца
+    /// </summary>
+    private IEnumerator SaveOriginalScale()
+    {
+        yield return null; // Подождать один кадр
+        
+        if (visualModelTransform != null)
+        {
+            originalScale = visualModelTransform.localScale;
+        }
+        else
+        {
+            originalScale = transform.localScale;
+        }
+    }
+    
+    /// <summary>
+    /// Найти визуальную модель питомца для правильного вращения
+    /// </summary>
+    private void FindVisualModel()
+    {
+        // Найти первый дочерний объект с рендерером (это должна быть визуальная модель)
+        Renderer[] renderers = GetComponentsInChildren<Renderer>();
+        
+        if (renderers.Length > 0)
+        {
+            // Найти самый глубокий дочерний объект с рендерером или первый найденный
+            Renderer visualRenderer = renderers[0];
+            
+            // Если есть несколько, выбираем тот, который не является UI элементом
+            foreach (Renderer r in renderers)
+            {
+                if (r != null && !r.GetComponent<Canvas>() && r.gameObject.activeInHierarchy)
+                {
+                    visualRenderer = r;
+                    break;
+                }
+            }
+            
+            if (visualRenderer != null)
+            {
+                visualModelTransform = visualRenderer.transform;
+                
+                // Сохранить смещение визуальной модели относительно корня (в локальных координатах)
+                visualModelOffset = visualModelTransform.localPosition;
+                
+                Debug.Log($"[PetBehavior] Найдена визуальная модель: {visualRenderer.name}, Offset: {visualModelOffset}");
+            }
+        }
+        
+        // Если визуальная модель не найдена, использовать корневой объект
+        if (visualModelTransform == null)
+        {
+            visualModelTransform = transform;
+            visualModelOffset = Vector3.zero;
+            Debug.LogWarning("[PetBehavior] Визуальная модель не найдена, используется корневой объект");
+        }
     }
     
     /// <summary>
@@ -83,6 +155,12 @@ public class PetBehavior : MonoBehaviour
         if (petData == null)
         {
             return;
+        }
+        
+        // Проверить, истек ли эффект ускорения
+        if (isBoosted && Time.time >= boostEndTime)
+        {
+            EndSpeedBoost();
         }
         
         // Если позиция заблокирована (во время добычи), только добывать
@@ -176,9 +254,6 @@ public class PetBehavior : MonoBehaviour
             miningDirection = transform.forward;
         }
         
-        // Сбросить случайный поворот при остановке для добычи
-        walkSwayOffset = 0f;
-        walkSwayTarget = 0f;
         
         // Отключить физику, если есть Rigidbody
         if (petRigidbody != null)
@@ -194,6 +269,13 @@ public class PetBehavior : MonoBehaviour
         
         // Создать эффект электричества при добыче
         CreateMiningEffect();
+        
+        // Показать эмоцию при начале добычи
+        PetEmotionUI emotionUI = GetComponent<PetEmotionUI>();
+        if (emotionUI != null)
+        {
+            emotionUI.ShowMiningStartEmotion();
+        }
     }
     
     /// <summary>
@@ -203,6 +285,13 @@ public class PetBehavior : MonoBehaviour
     {
         positionLocked = false;
         isMining = false;
+        
+        // Скрыть эмоцию добычи
+        PetEmotionUI emotionUI = GetComponent<PetEmotionUI>();
+        if (emotionUI != null)
+        {
+            emotionUI.HideEmotion();
+        }
         
         // Уничтожить эффект добычи
         DestroyMiningEffect();
@@ -238,7 +327,7 @@ public class PetBehavior : MonoBehaviour
         // Загрузить префаб эффекта
         GameObject effectPrefab = miningEffectPrefab;
         
-        // Если не назначен в инспекторе, попробовать загрузить из Resources
+        // Если не назначен в инспекторе, попробовать загрузить из Resources (работает и в редакторе, и в билде)
         if (effectPrefab == null)
         {
             effectPrefab = Resources.Load<GameObject>("vfx_Electricity_01");
@@ -254,7 +343,6 @@ public class PetBehavior : MonoBehaviour
         
         if (effectPrefab == null)
         {
-            Debug.LogWarning("[PetBehavior] Не удалось загрузить эффект vfx_Electricity_01. Назначьте префаб в инспекторе или поместите его в папку Resources.");
             return;
         }
         
@@ -356,12 +444,25 @@ public class PetBehavior : MonoBehaviour
         // Разворачиваем на 180 градусов, чтобы питомец шёл лицом, а не спиной
         float baseYRotation = Quaternion.LookRotation(direction).eulerAngles.y + 180f;
         
-        // Обновить случайный поворот для имитации ходьбы
-        UpdateWalkSway();
-        
-        // Применить поворот с учетом случайного отклонения
-        float finalYRotation = baseYRotation + walkSwayOffset;
-        transform.rotation = Quaternion.Euler(90, finalYRotation, 0);
+        // Применить поворот без качания
+        // Применить вращение к визуальной модели, а не к корневому объекту
+        // Это исправляет проблему с неправильным pivot
+        if (visualModelTransform != null && visualModelTransform != transform)
+        {
+            // Вращаем визуальную модель относительно корня
+            visualModelTransform.localRotation = Quaternion.Euler(90, baseYRotation, 0);
+            
+            // Сохраняем локальную позицию (pivot должен быть в центре модели)
+            visualModelTransform.localPosition = visualModelOffset;
+            
+            // Корневой объект не вращаем, только позиционируем
+            transform.rotation = Quaternion.identity;
+        }
+        else
+        {
+            // Если визуальная модель не найдена, использовать стандартное вращение
+            transform.rotation = Quaternion.Euler(90, baseYRotation, 0);
+        }
         
         // Вычислить максимальное расстояние, на которое можно двигаться
         // Остановиться точно на miningDistance
@@ -385,21 +486,6 @@ public class PetBehavior : MonoBehaviour
     }
     
     
-    /// <summary>
-    /// Обновить случайный поворот для имитации естественной ходьбы
-    /// </summary>
-    private void UpdateWalkSway()
-    {
-        // Если достигли целевого смещения, выбрать новое случайное значение
-        if (Mathf.Abs(walkSwayOffset - walkSwayTarget) < 0.1f)
-        {
-            // Выбрать новое случайное целевое смещение от -walkSwayAngle до +walkSwayAngle
-            walkSwayTarget = Random.Range(-walkSwayAngle, walkSwayAngle);
-        }
-        
-        // Плавно переходить к целевому смещению
-        walkSwayOffset = Mathf.Lerp(walkSwayOffset, walkSwayTarget, Time.deltaTime * walkSwaySpeed);
-    }
     
     /// <summary>
     /// Добывать кристалл
@@ -408,8 +494,15 @@ public class PetBehavior : MonoBehaviour
     {
         if (targetCrystal == null || !targetCrystal.IsAlive())
         {
+            // Кристалл уничтожен - показать эмоцию
             if (targetCrystal != null)
             {
+                PetEmotionUI emotionUI = GetComponent<PetEmotionUI>();
+                if (emotionUI != null)
+                {
+                    emotionUI.ShowMiningCompleteEmotion();
+                }
+                
                 CrystalManager.UnregisterPetMining(targetCrystal, this);
             }
             StopMining();
@@ -424,10 +517,35 @@ public class PetBehavior : MonoBehaviour
         
         // Вычислить множитель скорости добычи по редкости
         float rarityMultiplier = GetRarityMiningMultiplier(petData.rarity);
-        float damage = baseMiningRate * rarityMultiplier * Time.deltaTime;
+        
+        // Получить множитель карты (1.5x если куплена улучшенная карта)
+        float mapMultiplier = MapUpgradeSystem.IsMapUpgradePurchased() ? 1.5f : 1f;
+        
+        // Получить множитель ускорения (1.5x если питомец ускорен)
+        float boostMultiplier = isBoosted ? 1.5f : 1f;
+        
+        float damage = baseMiningRate * rarityMultiplier * mapMultiplier * boostMultiplier * Time.deltaTime;
+        
+        // Сохранить состояние кристалла до нанесения урона
+        bool wasAlive = targetCrystal != null && targetCrystal.IsAlive();
+        float healthBefore = targetCrystal != null ? targetCrystal.GetCurrentHealth() : 0f;
         
         // Нанести урон кристаллу
-        targetCrystal.TakeDamage(damage);
+        if (targetCrystal != null)
+        {
+            targetCrystal.TakeDamage(damage);
+            
+            // Проверить, был ли кристалл уничтожен после нанесения урона
+            // Проверяем healthAfter, так как Destroy() может быть вызван, но объект еще не уничтожен
+            float healthAfter = targetCrystal != null ? targetCrystal.GetCurrentHealth() : 0f;
+            bool wasDestroyed = wasAlive && healthBefore > 0 && healthAfter <= 0;
+            
+            if (wasDestroyed)
+            {
+                // Кристалл только что уничтожен - показать эмоцию с небольшой задержкой
+                StartCoroutine(ShowMiningCompleteEmotionDelayed());
+            }
+        }
         
         // Повернуться к кристаллу (используем сохраненную позицию, а не текущую трясущуюся)
         if (targetCrystal != null)
@@ -447,7 +565,18 @@ public class PetBehavior : MonoBehaviour
                 
                 // Плавно повернуть к кристаллу
                 float yRotation = Mathf.LerpAngle(currentEuler.y, targetEuler.y, Time.deltaTime * 5f);
+                
+                // Применить вращение к визуальной модели, а не к корневому объекту
+                if (visualModelTransform != null && visualModelTransform != transform)
+                {
+                    visualModelTransform.localRotation = Quaternion.Euler(currentEuler.x, yRotation, currentEuler.z);
+                    visualModelTransform.localPosition = visualModelOffset;
+                    transform.rotation = Quaternion.identity;
+                }
+                else
+                {
                 transform.rotation = Quaternion.Euler(currentEuler.x, yRotation, currentEuler.z);
+                }
             }
         }
         
@@ -499,9 +628,208 @@ public class PetBehavior : MonoBehaviour
         // Уничтожить эффект добычи при уничтожении питомца
         DestroyMiningEffect();
         
+        // Уничтожить эффект ускорения при уничтожении питомца
+        if (speedBoostEffect != null)
+        {
+            Destroy(speedBoostEffect);
+            speedBoostEffect = null;
+        }
+        
+        // Если питомец был ускорен, уведомить менеджер
+        if (isBoosted && PetSpeedBoostManager.Instance != null)
+        {
+            PetSpeedBoostManager.Instance.OnBoostEffectEnded();
+        }
+        
+        // Скрыть эмоцию при уничтожении
+        PetEmotionUI emotionUI = GetComponent<PetEmotionUI>();
+        if (emotionUI != null)
+        {
+            emotionUI.HideEmotion();
+        }
+        
         // Очистка при уничтожении
         targetCrystal = null;
         isMining = false;
+    }
+    
+    /// <summary>
+    /// Показать эмоцию окончания добычи с задержкой
+    /// </summary>
+    private IEnumerator ShowMiningCompleteEmotionDelayed()
+    {
+        // Подождать один кадр, чтобы убедиться, что кристалл действительно уничтожен
+        yield return null;
+        
+        PetEmotionUI emotionUI = GetComponent<PetEmotionUI>();
+        if (emotionUI != null)
+        {
+            emotionUI.ShowMiningCompleteEmotion();
+        }
+    }
+    
+    /// <summary>
+    /// Проверить, ускорен ли питомец
+    /// </summary>
+    public bool IsBoosted()
+    {
+        return isBoosted;
+    }
+    
+    /// <summary>
+    /// Применить ускорение питомцу
+    /// </summary>
+    public void ApplySpeedBoost()
+    {
+        if (isBoosted) return; // Уже ускорен
+        
+        isBoosted = true;
+        boostEndTime = Time.time + 5f; // Эффект длится 5 секунд
+        
+        // Сохранить флаг использования ускорения
+        PlayerPrefs.SetInt("HasUsedSpeedBoost", 1);
+        PlayerPrefs.Save();
+        
+        // Создать VFX эффект
+        CreateSpeedBoostEffect();
+        
+        // Запустить анимацию увеличения
+        StartCoroutine(ScaleUpAnimation());
+        
+        Debug.Log($"[PetBehavior] Питомец {petData?.petName} ускорен! Эффект продлится 5 секунд.");
+    }
+    
+    /// <summary>
+    /// Создать VFX эффект ускорения
+    /// </summary>
+    private void CreateSpeedBoostEffect()
+    {
+        // Загрузить префаб эффекта
+        GameObject effectPrefab = null;
+        
+        // Попробовать загрузить из Resources
+        effectPrefab = Resources.Load<GameObject>("vfx_Implosion_01");
+        
+        // Если не найдено в Resources, попробовать загрузить через AssetDatabase (только в редакторе)
+        #if UNITY_EDITOR
+        if (effectPrefab == null)
+        {
+            // Попробовать разные пути
+            string[] possiblePaths = {
+                "Assets/vfx_Implosion_01.prefab",
+                "Assets/Assets/vfx_Implosion_01.prefab",
+                "Assets/Effects/vfx_Implosion_01.prefab",
+                "Assets/VFX/vfx_Implosion_01.prefab"
+            };
+            
+            foreach (string path in possiblePaths)
+            {
+                effectPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (effectPrefab != null) break;
+            }
+        }
+        #endif
+        
+        if (effectPrefab != null)
+        {
+            // Создать эффект на позиции питомца
+            speedBoostEffect = Instantiate(effectPrefab, transform.position, Quaternion.identity);
+            
+            // Сделать эффект дочерним объектом питомца
+            speedBoostEffect.transform.SetParent(transform);
+        }
+        else
+        {
+            Debug.LogWarning("[PetBehavior] Не удалось загрузить эффект vfx_Implosion_01");
+        }
+    }
+    
+    /// <summary>
+    /// Анимация увеличения питомца на 30% за 1 секунду
+    /// </summary>
+    private IEnumerator ScaleUpAnimation()
+    {
+        Transform targetTransform = visualModelTransform != null ? visualModelTransform : transform;
+        
+        // Если originalScale еще не был сохранен, сохранить текущий размер
+        if (originalScale == Vector3.zero)
+        {
+            originalScale = targetTransform.localScale;
+        }
+        
+        Vector3 startScale = targetTransform.localScale;
+        Vector3 targetScale = startScale * 1.3f; // Увеличить на 30%
+        
+        float duration = 1f; // 1 секунда
+        float elapsed = 0f;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            
+            // Плавная интерполяция
+            targetTransform.localScale = Vector3.Lerp(startScale, targetScale, t);
+            
+            yield return null;
+        }
+        
+        // Убедиться, что достигли целевого размера
+        targetTransform.localScale = targetScale;
+    }
+    
+    /// <summary>
+    /// Завершить эффект ускорения
+    /// </summary>
+    private void EndSpeedBoost()
+    {
+        if (!isBoosted) return;
+        
+        isBoosted = false;
+        
+        // Уничтожить VFX эффект
+        if (speedBoostEffect != null)
+        {
+            Destroy(speedBoostEffect);
+            speedBoostEffect = null;
+        }
+        
+        // Вернуть исходный размер
+        StartCoroutine(ScaleDownAnimation());
+        
+        // Уведомить менеджер, что эффект закончился
+        if (PetSpeedBoostManager.Instance != null)
+        {
+            PetSpeedBoostManager.Instance.OnBoostEffectEnded();
+        }
+        
+        Debug.Log($"[PetBehavior] Эффект ускорения питомца {petData?.petName} закончился.");
+    }
+    
+    /// <summary>
+    /// Анимация уменьшения питомца до исходного размера
+    /// </summary>
+    private IEnumerator ScaleDownAnimation()
+    {
+        Transform targetTransform = visualModelTransform != null ? visualModelTransform : transform;
+        Vector3 currentScale = targetTransform.localScale;
+        
+        float duration = 0.5f; // 0.5 секунды для уменьшения
+        float elapsed = 0f;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            
+            // Плавная интерполяция обратно к исходному размеру
+            targetTransform.localScale = Vector3.Lerp(currentScale, originalScale, t);
+            
+            yield return null;
+        }
+        
+        // Убедиться, что вернулись к исходному размеру
+        targetTransform.localScale = originalScale;
     }
 }
 

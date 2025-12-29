@@ -1,12 +1,17 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
 /// Класс для анимаций UI элементов в стиле Roblox
 /// </summary>
 public static class UIAnimations
 {
+    // Словарь для отслеживания активных анимаций bounce
+    private static Dictionary<VisualElement, Coroutine> activeBounceAnimations = new Dictionary<VisualElement, Coroutine>();
+    // Словарь для сохранения оригинальных размеров элементов
+    private static Dictionary<VisualElement, Vector2> originalScales = new Dictionary<VisualElement, Vector2>();
     /// <summary>
     /// Анимация появления модального окна (масштаб + прозрачность)
     /// </summary>
@@ -44,6 +49,49 @@ public static class UIAnimations
         coroutineRunner.StartCoroutine(PulseAnimation(element, duration));
     }
     
+    // Словарь для отслеживания активных непрерывных анимаций пульсации
+    private static Dictionary<VisualElement, Coroutine> activePulseAnimations = new Dictionary<VisualElement, Coroutine>();
+    
+    /// <summary>
+    /// Запустить непрерывную анимацию пульсации (для подсказок)
+    /// </summary>
+    public static Coroutine StartContinuousPulse(VisualElement element, MonoBehaviour coroutineRunner)
+    {
+        if (element == null || coroutineRunner == null) return null;
+        
+        // Остановить предыдущую анимацию, если она есть
+        StopContinuousPulse(element, coroutineRunner);
+        
+        // Запустить новую непрерывную анимацию
+        Coroutine pulseCoroutine = coroutineRunner.StartCoroutine(ContinuousPulseAnimation(element));
+        activePulseAnimations[element] = pulseCoroutine;
+        return pulseCoroutine;
+    }
+    
+    /// <summary>
+    /// Остановить непрерывную анимацию пульсации
+    /// </summary>
+    public static void StopContinuousPulse(VisualElement element, MonoBehaviour coroutineRunner)
+    {
+        if (element == null || coroutineRunner == null) return;
+        
+        if (activePulseAnimations.ContainsKey(element) && activePulseAnimations[element] != null)
+        {
+            coroutineRunner.StopCoroutine(activePulseAnimations[element]);
+            activePulseAnimations.Remove(element);
+            
+            // Восстановить оригинальный размер
+            if (originalScales.ContainsKey(element))
+            {
+                element.style.scale = new Scale(originalScales[element]);
+            }
+            else
+            {
+                element.style.scale = new Scale(Vector2.one);
+            }
+        }
+    }
+    
     /// <summary>
     /// Анимация изменения числа (для счетчика монет)
     /// </summary>
@@ -55,13 +103,53 @@ public static class UIAnimations
     }
     
     /// <summary>
+    /// Инициализировать оригинальный размер элемента для bounce анимации
+    /// </summary>
+    public static void InitializeBounceAnimation(VisualElement element)
+    {
+        if (element == null) return;
+        
+        // Сохраняем оригинальный размер при первом использовании
+        if (!originalScales.ContainsKey(element))
+        {
+            Vector3 currentScaleValue = element.style.scale.value.value;
+            Vector2 currentScale = new Vector2(currentScaleValue.x, currentScaleValue.y);
+            // Если scale не установлен, использовать Vector2.one
+            if (currentScaleValue.x == 0f && currentScaleValue.y == 0f)
+            {
+                currentScale = Vector2.one;
+                element.style.scale = new Scale(currentScale);
+            }
+            originalScales[element] = currentScale;
+        }
+    }
+    
+    /// <summary>
     /// Анимация "прыжка" элемента (bounce effect)
     /// </summary>
     public static void AnimateBounce(VisualElement element, MonoBehaviour coroutineRunner)
     {
         if (element == null || coroutineRunner == null) return;
         
-        coroutineRunner.StartCoroutine(BounceAnimation(element));
+        // Инициализируем, если еще не инициализировано
+        InitializeBounceAnimation(element);
+        
+        // Если анимация уже идет, останавливаем её
+        if (activeBounceAnimations.ContainsKey(element) && activeBounceAnimations[element] != null)
+        {
+            coroutineRunner.StopCoroutine(activeBounceAnimations[element]);
+            activeBounceAnimations.Remove(element);
+            
+            // Восстанавливаем оригинальный размер перед запуском новой анимации
+            if (originalScales.ContainsKey(element))
+            {
+                element.style.scale = new Scale(originalScales[element]);
+            }
+        }
+        
+        // Запускаем новую анимацию
+        Coroutine bounceCoroutine = coroutineRunner.StartCoroutine(BounceAnimation(element, coroutineRunner));
+        activeBounceAnimations[element] = bounceCoroutine;
     }
     
     /// <summary>
@@ -130,6 +218,30 @@ public static class UIAnimations
     }
     
     /// <summary>
+    /// Непрерывная анимация пульсации (для подсказок)
+    /// </summary>
+    private static IEnumerator ContinuousPulseAnimation(VisualElement element)
+    {
+        // Инициализировать оригинальный размер, если еще не инициализирован
+        InitializeBounceAnimation(element);
+        
+        // Получить оригинальный размер из сохраненных значений
+        Vector2 originalScale = originalScales.ContainsKey(element) ? originalScales[element] : Vector2.one;
+        float time = 0f;
+        
+        while (true)
+        {
+            time += Time.deltaTime;
+            
+            // Синусоидальная пульсация (1.0 - 1.15 масштаб)
+            float scale = 1f + Mathf.Sin(time * 2f) * 0.15f;
+            element.style.scale = new Scale(originalScale * scale);
+            
+            yield return null;
+        }
+    }
+    
+    /// <summary>
     /// Анимация изменения числа
     /// </summary>
     private static IEnumerator NumberChangeAnimation(VisualElement element)
@@ -156,9 +268,18 @@ public static class UIAnimations
     /// <summary>
     /// Анимация прыжка (bounce)
     /// </summary>
-    private static IEnumerator BounceAnimation(VisualElement element)
+    private static IEnumerator BounceAnimation(VisualElement element, MonoBehaviour coroutineRunner)
     {
-        Vector2 originalScale = element.style.scale.value.value;
+        // Используем сохраненный оригинальный размер
+        Vector2 originalScale = originalScales.ContainsKey(element) ? originalScales[element] : Vector2.one;
+        
+        // Если scale не был установлен, установить его
+        Vector3 currentScaleValue = element.style.scale.value.value;
+        if (currentScaleValue.x == 0f && currentScaleValue.y == 0f)
+        {
+            element.style.scale = new Scale(originalScale);
+        }
+        
         float elapsed = 0f;
         float duration = 0.4f;
         
@@ -174,7 +295,14 @@ public static class UIAnimations
             yield return null;
         }
         
+        // Восстанавливаем оригинальный размер
         element.style.scale = new Scale(originalScale);
+        
+        // Удаляем из словаря активных анимаций
+        if (activeBounceAnimations.ContainsKey(element))
+        {
+            activeBounceAnimations.Remove(element);
+        }
     }
     
     /// <summary>

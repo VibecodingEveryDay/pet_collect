@@ -25,7 +25,7 @@ public static class CrystalUpgradeSystem
     /// </summary>
     public static float GetCurrentMaxHealth()
     {
-        // Формула: baseMaxHealth * (1.5 ^ (hpLevel - 1))
+        // HP увеличивается на 50% с каждым уровнем: baseMaxHealth * (1.5 ^ (hpLevel - 1))
         return baseMaxHealth * Mathf.Pow(1.5f, hpLevel - 1);
     }
     
@@ -34,8 +34,10 @@ public static class CrystalUpgradeSystem
     /// </summary>
     public static int GetUpgradePrice()
     {
-        // Формула: 100 * (1.5 ^ (hpLevel - 1))
-        return Mathf.RoundToInt(100f * Mathf.Pow(1.5f, hpLevel - 1));
+        // Цена увеличивается в 2 раза с каждой покупкой: 200 * (2 ^ (hpLevel - 1))
+        int basePrice = 200;
+        int price = basePrice * (int)Mathf.Pow(2f, hpLevel - 1);
+        return price;
     }
     
     /// <summary>
@@ -53,6 +55,9 @@ public static class CrystalUpgradeSystem
         
         // Вызываем событие
         OnHPUpgraded?.Invoke();
+        
+        // Автоматическое сохранение при улучшении
+        GameSaveManager.Instance?.SaveGameData();
     }
     
     /// <summary>
@@ -70,12 +75,13 @@ public static class CrystalUpgradeSystem
     }
     
     /// <summary>
-    /// Установить уровень HP (для тестирования)
+    /// Установить уровень HP (без сохранения, для загрузки)
     /// </summary>
     public static void SetHPLevel(int level)
     {
         hpLevel = Mathf.Max(1, level);
         UpdateAllCrystals();
+        // Примечание: SetHPLevel не вызывает сохранение, чтобы избежать цикла при загрузке
     }
 }
 

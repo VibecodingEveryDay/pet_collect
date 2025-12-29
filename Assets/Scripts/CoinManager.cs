@@ -38,7 +38,7 @@ public class CoinManager : MonoBehaviour
     }
     
     [Header("Настройки")]
-    [SerializeField] private int startingCoins = 500; // Начальное количество монет
+    [SerializeField] private int startingCoins = 100; // Начальное количество монет
     
     private void Awake()
     {
@@ -92,6 +92,17 @@ public class CoinManager : MonoBehaviour
     {
         _coins = Mathf.Max(0, amount);
         OnCoinsChanged?.Invoke(_coins);
+        // Автоматическое сохранение при изменении монет
+        GameSaveManager.Instance?.SaveGameData();
+    }
+    
+    /// <summary>
+    /// Установить количество монет без сохранения (для загрузки из сохранений)
+    /// </summary>
+    public static void SetCoinsWithoutSave(int amount)
+    {
+        _coins = Mathf.Max(0, amount);
+        OnCoinsChanged?.Invoke(_coins);
     }
     
     /// <summary>
@@ -103,6 +114,8 @@ public class CoinManager : MonoBehaviour
         {
             _coins += amount;
             OnCoinsChanged?.Invoke(_coins);
+            // Автоматическое сохранение при изменении монет
+            GameSaveManager.Instance?.SaveGameData();
         }
     }
     
@@ -115,6 +128,8 @@ public class CoinManager : MonoBehaviour
         {
             _coins -= amount;
             OnCoinsChanged?.Invoke(_coins);
+            // Автоматическое сохранение при изменении монет
+            GameSaveManager.Instance?.SaveGameData();
         }
     }
     

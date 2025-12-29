@@ -7,7 +7,7 @@
                 <ui:VisualElement name="shop-buttons" class="shop-buttons">
                     <!-- Кнопка покупки яйца -->
                     <ui:Button name="buy-egg-button" class="shop-item-button">
-                        <ui:Label name="egg-emoji" class="egg-emoji" text="🥚" />
+                        <ui:VisualElement name="egg-emoji" class="egg-emoji" />
                         <ui:Label text="Купить яйцо" class="shop-item-label" />
                         <ui:Label name="egg-price" class="shop-item-price" text="100 💎" />
                     </ui:Button>
@@ -17,6 +17,13 @@
                         <ui:VisualElement name="crystal-icon" class="crystal-icon" />
                         <ui:Label text="Улучшить кристаллы" class="shop-item-label" />
                         <ui:Label name="crystal-upgrade-price" class="shop-item-price" text="200 💎" />
+                    </ui:Button>
+                    
+                    <!-- Кнопка улучшения карты -->
+                    <ui:Button name="upgrade-map-button" class="shop-item-button">
+                        <ui:VisualElement name="map-emoji" class="egg-emoji" />
+                        <ui:Label text="Улучшить карту: сумеречные долины" class="shop-item-label" />
+                        <ui:Label name="map-upgrade-price" class="shop-item-price" text="500 💎" />
                     </ui:Button>
                 </ui:VisualElement>
             </ui:VisualElement>

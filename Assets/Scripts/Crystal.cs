@@ -6,8 +6,7 @@ public class Crystal : MonoBehaviour
     [SerializeField] private float maxHealth = 100f;
     [SerializeField] private float currentHealth;
     
-    [Header("UI")]
-    [SerializeField] private CrystalHealthBar healthBar;
+    private CrystalHealthBar healthBar;
     
     [Header("Коллайдер")]
     [SerializeField] private bool autoAddCollider = false; // Отключено по умолчанию, создается через UpdateCollider()
@@ -30,7 +29,16 @@ public class Crystal : MonoBehaviour
     private void Start()
     {
         // Сохранить исходную позицию для эффекта тряски
-        originalPosition = transform.position;
+        // Используем задержку, чтобы убедиться, что позиция установлена правильно после спавна
+        if (originalPosition == Vector3.zero && transform.position != Vector3.zero)
+        {
+            originalPosition = transform.position;
+        }
+        else if (originalPosition == Vector3.zero)
+        {
+            // Если позиция все еще нулевая, попробовать установить через небольшую задержку
+            Invoke(nameof(InitializeOriginalPosition), 0.1f);
+        }
         
         // Инициализировать HP из CrystalUpgradeSystem
         maxHealth = CrystalUpgradeSystem.GetCurrentMaxHealth();
@@ -44,23 +52,31 @@ public class Crystal : MonoBehaviour
         
         // Коллайдеры отключены - не добавляем коллайдер
         
-        // Создать health bar
-        try
+        // Найти health bar компонент
+        healthBar = GetComponentInChildren<CrystalHealthBar>(true);
+        if (healthBar != null)
         {
-            CreateHealthBar();
-            
-            // Обновить health bar с начальным HP
-            UpdateHealthBar();
+            healthBar.Initialize(transform);
+            healthBar.UpdateHealth(currentHealth, maxHealth);
         }
-        catch (System.Exception e)
+    }
+    
+    /// <summary>
+    /// Инициализировать исходную позицию с задержкой (на случай, если позиция устанавливается после Start)
+    /// </summary>
+    private void InitializeOriginalPosition()
+    {
+        if (originalPosition == Vector3.zero && transform.position != Vector3.zero)
         {
+            originalPosition = transform.position;
+            Debug.Log($"[Crystal] Исходная позиция инициализирована с задержкой: {originalPosition}");
         }
     }
     
     private void Update()
     {
-        // Обновить исходную позицию (на случай, если кристалл переместился)
-        if (!IsBeingMined())
+        // Если исходная позиция еще не установлена, установить её
+        if (originalPosition == Vector3.zero && transform.position != Vector3.zero)
         {
             originalPosition = transform.position;
         }
@@ -72,8 +88,13 @@ public class Crystal : MonoBehaviour
         }
         else
         {
-            // Вернуть к исходной позиции, если не добывается
-            transform.position = originalPosition;
+            // Обновить исходную позицию только если кристалл действительно переместился (не из-за тряски)
+            // Это предотвратит постоянный сброс позиции в нулевую
+            if (originalPosition != Vector3.zero)
+            {
+                // Вернуть к исходной позиции, если не добывается
+                transform.position = originalPosition;
+            }
             shakeTime = 0f;
         }
     }
@@ -85,6 +106,13 @@ public class Crystal : MonoBehaviour
         
         // Отменить регистрацию кристалла
         CrystalManager.UnregisterCrystal(this);
+        
+        // Уведомить CrystalSpawner о уничтожении кристалла для проверки респавна
+        CrystalSpawner spawner = FindObjectOfType<CrystalSpawner>();
+        if (spawner != null)
+        {
+            spawner.OnCrystalDestroyed(gameObject);
+        }
     }
     
     /// <summary>
@@ -116,7 +144,10 @@ public class Crystal : MonoBehaviour
         currentHealth = maxHealth * healthPercent;
         
         // Обновить health bar
-        UpdateHealthBar();
+        if (healthBar != null)
+        {
+            healthBar.UpdateHealth(currentHealth, maxHealth);
+        }
     }
     
     /// <summary>
@@ -201,41 +232,17 @@ public class Crystal : MonoBehaviour
     }
     
     /// <summary>
-    /// Создать health bar для кристалла
-    /// </summary>
-    private void CreateHealthBar()
-    {
-        // Создать GameObject для health bar
-        GameObject healthBarObj = new GameObject("CrystalHealthBar");
-        healthBarObj.transform.SetParent(transform);
-        healthBarObj.transform.localPosition = Vector3.zero;
-        healthBarObj.transform.localRotation = Quaternion.identity;
-        
-        // Добавить компонент CrystalHealthBar
-        healthBar = healthBarObj.AddComponent<CrystalHealthBar>();
-        
-        // Инициализировать health bar
-        healthBar.Initialize(transform);
-    }
-    
-    /// <summary>
-    /// Обновить отображение health bar
-    /// </summary>
-    private void UpdateHealthBar()
-    {
-        if (healthBar != null)
-        {
-            healthBar.UpdateHealthBar(currentHealth, maxHealth);
-        }
-    }
-    
-    /// <summary>
     /// Нанести урон кристаллу
     /// </summary>
     public void TakeDamage(float damage)
     {
         currentHealth = Mathf.Max(0, currentHealth - damage);
-        UpdateHealthBar();
+        
+        // Обновить health bar
+        if (healthBar != null)
+        {
+            healthBar.UpdateHealth(currentHealth, maxHealth);
+        }
         
         if (currentHealth <= 0)
         {
@@ -249,7 +256,12 @@ public class Crystal : MonoBehaviour
     public void Heal(float amount)
     {
         currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
-        UpdateHealthBar();
+        
+        // Обновить health bar
+        if (healthBar != null)
+        {
+            healthBar.UpdateHealth(currentHealth, maxHealth);
+        }
     }
     
     /// <summary>

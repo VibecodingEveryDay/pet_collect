@@ -17,13 +17,21 @@ public class PetHatchingManager : MonoBehaviour
     [SerializeField] private float spawnDistanceFromPlayer = 2.5f;
     
     [Header("Система редкости")]
-    [SerializeField] private float commonChance = 0.7f;      // 70%
-    [SerializeField] private float epicChance = 0.2f;        // 20%
-    [SerializeField] private float legendaryChance = 0.1f;   // 10% (используется в DeterminePetRarity)
+    [SerializeField] private float commonChance = 0.7f;      // 70% - редкий
+    [SerializeField] private float epicChance = 0.2f;       // 20% - эпический
+    [SerializeField] private float legendaryChance = 0.1f;  // 10% - легендарный
     
     private PlayerController playerController;
     private GameObject currentEgg;
     private PetRarity currentRarity;
+    
+    /// <summary>
+    /// Проверить, идет ли сейчас вылупление
+    /// </summary>
+    public bool IsHatching()
+    {
+        return currentEgg != null;
+    }
     
     private void Awake()
     {
@@ -38,6 +46,17 @@ public class PetHatchingManager : MonoBehaviour
         {
             LoadEggModel();
         }
+        
+        // Проверить и инициализировать вероятности, если они не установлены
+        ValidateRarityChances();
+    }
+    
+    /// <summary>
+    /// Проверить и инициализировать вероятности редкости
+    /// </summary>
+    private void ValidateRarityChances()
+    {
+        // Проверка выполняется автоматически в DeterminePetRarity
     }
     
     /// <summary>
@@ -95,7 +114,8 @@ public class PetHatchingManager : MonoBehaviour
         }
         
         // Определить редкость питомца
-        currentRarity = DeterminePetRarity();
+        PetRarity determinedRarity = DeterminePetRarity();
+        currentRarity = determinedRarity;
         
         // Заспавнить яйцо рядом с игроком
         SpawnEgg();
@@ -106,19 +126,45 @@ public class PetHatchingManager : MonoBehaviour
     /// </summary>
     private PetRarity DeterminePetRarity()
     {
-        float randomValue = Random.value;
+        // Читаем значения из SerializeField
+        float commonWeight = commonChance;
+        float epicWeight = epicChance;
+        float legendaryWeight = legendaryChance;
         
-        if (randomValue < commonChance)
+        // Вычисляем общий вес
+        float totalWeight = commonWeight + epicWeight + legendaryWeight;
+        
+        // Если сумма равна 0 или очень мала, используем значения по умолчанию
+        if (totalWeight <= 0.001f)
         {
-            return PetRarity.Common; // 0.0 - 0.7 (70%)
+            commonWeight = 0.7f;
+            epicWeight = 0.2f;
+            legendaryWeight = 0.1f;
+            totalWeight = 1.0f;
         }
-        else if (randomValue < commonChance + epicChance)
+        
+        // Нормализуем веса (на случай, если сумма не равна 1.0)
+        float normalizedCommon = commonWeight / totalWeight;
+        float normalizedEpic = epicWeight / totalWeight;
+        
+        // Генерируем случайное число от 0.0 до 1.0
+        float randomRoll = Random.value;
+        
+        // Определяем редкость на основе кумулятивных вероятностей
+        float commonThreshold = normalizedCommon;
+        float epicThreshold = normalizedCommon + normalizedEpic;
+        
+        if (randomRoll < commonThreshold)
         {
-            return PetRarity.Epic; // 0.7 - 0.9 (20%)
+            return PetRarity.Common;
+        }
+        else if (randomRoll < epicThreshold)
+        {
+            return PetRarity.Epic;
         }
         else
         {
-            return PetRarity.Legendary; // 0.9 - 1.0 (10%)
+            return PetRarity.Legendary;
         }
     }
     
@@ -127,15 +173,12 @@ public class PetHatchingManager : MonoBehaviour
     /// </summary>
     public void SpawnEgg()
     {
-        Debug.Log("SpawnEgg() вызван");
-        
         // Проверить, что playerController инициализирован
         if (playerController == null)
         {
             playerController = FindObjectOfType<PlayerController>();
             if (playerController == null)
             {
-                Debug.LogError("PlayerController не найден! Невозможно заспавнить яйцо.");
                 return;
             }
         }
@@ -143,11 +186,9 @@ public class PetHatchingManager : MonoBehaviour
         // Проверить, что eggPrefab загружен
         if (eggPrefab == null)
         {
-            Debug.LogWarning("eggPrefab не назначен, пытаюсь загрузить...");
             LoadEggModel();
             if (eggPrefab == null)
             {
-                Debug.LogError("Не удалось загрузить eggPrefab! Невозможно заспавнить яйцо.");
                 return;
             }
         }
@@ -161,21 +202,13 @@ public class PetHatchingManager : MonoBehaviour
         Vector3 playerPosition = playerController.transform.position;
         Vector3 playerForward = playerController.transform.forward;
         Vector3 spawnPosition = playerPosition + playerForward * spawnDistanceFromPlayer;
-        spawnPosition.y = playerPosition.y + 0.5f; // Поднять на 0.5f выше уровня игрока
+        spawnPosition.y = playerPosition.y + 0.5f;
         
-        // Повернуть яйцо вертикально (поворот на 90 градусов по оси X)
-        // Если модель уже вертикальная, можно попробовать без поворота или с другим углом
         Quaternion eggRotation = Quaternion.Euler(-90f, 0f, 0f);
         
-        // Альтернативный вариант: если модель уже вертикальная, используем identity
-        // Quaternion eggRotation = Quaternion.identity;
-        
-        Debug.Log($"Спавню яйцо в позиции: {spawnPosition}");
         currentEgg = Instantiate(eggPrefab, spawnPosition, eggRotation);
         currentEgg.name = "Egg_Hatching";
-        Debug.Log("Яйцо успешно заспавнено!");
         
-        // Проверить, что яйцо создано
         if (currentEgg == null)
         {
             return;
@@ -183,29 +216,15 @@ public class PetHatchingManager : MonoBehaviour
         
         // Проверить наличие Renderer для видимости
         Renderer[] renderers = currentEgg.GetComponentsInChildren<Renderer>();
-        
-        if (renderers.Length == 0)
-        {
-            // Попробовать найти MeshRenderer или SkinnedMeshRenderer
-            MeshRenderer meshRenderer = currentEgg.GetComponentInChildren<MeshRenderer>();
-            SkinnedMeshRenderer skinnedRenderer = currentEgg.GetComponentInChildren<SkinnedMeshRenderer>();
-        }
-        else
+        if (renderers.Length > 0)
         {
             foreach (Renderer renderer in renderers)
             {
-                // Убедиться, что Renderer включен
                 renderer.enabled = true;
             }
         }
         
-        // Проверить MeshFilter
-        MeshFilter[] meshFilters = currentEgg.GetComponentsInChildren<MeshFilter>();
-        foreach (MeshFilter meshFilter in meshFilters)
-        {
-        }
-        
-        // Увеличить яйцо в 1.5 раза (умножить текущий масштаб на 1.5)
+        // Увеличить яйцо в 1.5 раза
         Vector3 originalScale = currentEgg.transform.localScale;
         currentEgg.transform.localScale = originalScale * 1.5f;
         
@@ -229,37 +248,41 @@ public class PetHatchingManager : MonoBehaviour
             currentEgg = null;
         }
         
-        // Создать PetData с редкостью
-        string rarityName = GetRarityName(rarity);
-        string petName = $"Питомец {rarityName}";
+        // Использовать редкость, которая была определена при старте вылупления
+        PetRarity finalRarity = currentRarity;
         
-        // Определить путь к модели
-        string modelPath = GetPetModelPath(rarity);
+        // Создать PetData с редкостью
+        string rarityName = GetRarityName(finalRarity);
+        string petName = $"Питомец {rarityName}";
+        string modelPath = GetPetModelPath(finalRarity);
         
         PetData newPet = new PetData(
-            rarity,
+            finalRarity,
             petName,
             Random.Range(1000, 9999),
             1f,
-            GetRarityColor(rarity)
+            GetRarityColor(finalRarity)
         );
         
         newPet.petModelPath = modelPath;
         
-        // Добавить в инвентарь (НЕ добавлять в активные автоматически)
+        // Добавить в инвентарь
         if (PetInventory.Instance != null)
         {
             PetInventory.Instance.AddPet(newPet);
+            
+            // Сбросить флаг покупки яйца, так как питомец успешно добавлен
+            PlayerPrefs.SetInt("EggPurchased", 0);
+            PlayerPrefs.Save();
         }
         
         // Показать уведомление
-        ShowPetNotification(rarity);
+        ShowPetNotification(finalRarity);
         
         // Обновить UI инвентаря, если модальное окно открыто
         InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
         if (inventoryUI != null)
         {
-            // Обновить UI через рефлексию или публичный метод
             var updateMethod = typeof(InventoryUI).GetMethod("UpdateUI", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (updateMethod != null)
@@ -267,16 +290,21 @@ public class PetHatchingManager : MonoBehaviour
                 updateMethod.Invoke(inventoryUI, null);
             }
             
-            // Обновить модальное окно, если оно открыто
             var updateModalMethod = typeof(InventoryUI).GetMethod("UpdateModalUI", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (updateModalMethod != null)
             {
                 updateModalMethod.Invoke(inventoryUI, null);
             }
+            
+            // Разблокировать кнопку покупки яйца после завершения вылупления
+            var updateButtonMethod = typeof(InventoryUI).GetMethod("UpdateBuyEggButtonAfterHatching", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (updateButtonMethod != null)
+            {
+                updateButtonMethod.Invoke(inventoryUI, null);
+            }
         }
-        
-        Debug.Log($"Питомец {rarityName} создан и добавлен в инвентарь!");
     }
     
     /// <summary>

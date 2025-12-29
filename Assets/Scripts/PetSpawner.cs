@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 #if UNITY_EDITOR
@@ -156,6 +157,57 @@ public class PetSpawner : MonoBehaviour
         // Установить фиксированную позицию Y из PetSpawner в PetBehavior
         petBehavior.SetFixedYPosition(yPosition);
         
+        // Добавить коллайдер для обработки кликов (если его еще нет)
+        Collider existingCollider = petInstance.GetComponent<Collider>();
+        if (existingCollider == null)
+        {
+            // Попробовать найти коллайдер в дочерних объектах
+            existingCollider = petInstance.GetComponentInChildren<Collider>();
+        }
+        
+        if (existingCollider == null)
+        {
+            // Добавить BoxCollider для обнаружения кликов
+            BoxCollider boxCollider = petInstance.AddComponent<BoxCollider>();
+            boxCollider.isTrigger = true; // Триггер, чтобы персонаж проходил сквозь питомца, но Raycast все равно работает
+            // Размер коллайдера будет установлен автоматически на основе рендерера
+            // Если нужно, можно установить размер вручную
+            Renderer petRenderer = petInstance.GetComponentInChildren<Renderer>();
+            if (petRenderer != null)
+            {
+                // Подождать кадр, чтобы рендерер успел инициализироваться
+                StartCoroutine(SetupColliderDelayed(petInstance, petRenderer));
+            }
+            else
+            {
+                // Если рендерер не найден, использовать стандартный размер
+                boxCollider.size = new Vector3(2f, 2f, 2f); // Увеличенный размер для лучшего обнаружения
+                boxCollider.center = Vector3.zero;
+                Debug.Log($"[PetSpawner] Коллайдер добавлен с размером по умолчанию для питомца {petData.petName}");
+            }
+        }
+        else
+        {
+            // Убедиться, что существующий коллайдер является триггером (чтобы персонаж проходил сквозь питомца)
+            existingCollider.isTrigger = true;
+            Debug.Log($"[PetSpawner] Используется существующий коллайдер для питомца {petData.petName}, установлен как триггер");
+        }
+        
+        // Добавить компонент PetEmotionUI для отображения эмоций
+        PetEmotionUI emotionUI = petInstance.AddComponent<PetEmotionUI>();
+        Debug.Log($"[PetSpawner] PetEmotionUI добавлен: {emotionUI != null}");
+        
+        // Показать эмоцию при спавне с небольшой задержкой, чтобы дать время на инициализацию
+        if (emotionUI != null)
+        {
+            Debug.Log($"[PetSpawner] Запускаю корутину для показа эмоции спавна");
+            StartCoroutine(ShowSpawnEmotionDelayed(emotionUI));
+        }
+        else
+        {
+            Debug.LogError("[PetSpawner] Не удалось добавить PetEmotionUI!");
+        }
+        
         // Сохранить ссылки
         petData.worldInstance = petInstance;
         spawnedPets[petData] = petInstance;
@@ -219,26 +271,49 @@ public class PetSpawner : MonoBehaviour
         
         GameObject petPrefab = null;
         
-#if UNITY_EDITOR
-        // В редакторе используем AssetDatabase
-        petPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(petData.petModelPath);
+        // Извлекаем имя файла из пути (без расширения)
+        string fileName = System.IO.Path.GetFileNameWithoutExtension(petData.petModelPath);
         
-        // Если не найден, попробовать поиск по имени файла
+        // Сначала пробуем загрузить из Resources (работает и в редакторе, и в билде)
+        // Это приоритетный способ, так как префабы находятся в Resources/Pets/
+        petPrefab = Resources.Load<GameObject>($"Pets/{fileName}");
         if (petPrefab == null)
         {
-            string fileName = System.IO.Path.GetFileNameWithoutExtension(petData.petModelPath);
-            string[] guids = AssetDatabase.FindAssets($"{fileName} t:GameObject");
-            if (guids.Length > 0)
+            // Пробуем без папки Pets
+            petPrefab = Resources.Load<GameObject>(fileName);
+        }
+        
+#if UNITY_EDITOR
+        // В редакторе, если не нашли в Resources, пробуем AssetDatabase как fallback
+        if (petPrefab == null)
+        {
+            // Пробуем загрузить префаб напрямую (если путь указывает на префаб)
+            string prefabPath = petData.petModelPath.Replace(".glb", ".prefab");
+            petPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            
+            // Если не найден, попробовать поиск по имени файла
+            if (petPrefab == null)
             {
-                string assetPath = AssetDatabase.GUIDToAssetPath(guids[0]);
-                petPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+                string[] guids = AssetDatabase.FindAssets($"{fileName} t:Prefab");
+                if (guids.Length > 0)
+                {
+                    string assetPath = AssetDatabase.GUIDToAssetPath(guids[0]);
+                    petPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+                }
+            }
+            
+            // Последняя попытка - загрузить GLB напрямую (если нет префаба)
+            if (petPrefab == null)
+            {
+                petPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(petData.petModelPath);
             }
         }
-#else
-        // В билде используем Resources
-        string resourcePath = petData.petModelPath.Replace("Assets/Assets/Pets/", "").Replace(".glb", "");
-        petPrefab = Resources.Load<GameObject>($"Pets/{resourcePath}");
 #endif
+        
+        if (petPrefab == null)
+        {
+            Debug.LogError($"[PetSpawner] Не удалось загрузить модель питомца: {petData.petModelPath}. Убедитесь, что префаб находится в папке Resources/Pets/ или путь указан правильно.");
+        }
         
         return petPrefab;
     }
@@ -338,5 +413,53 @@ public class PetSpawner : MonoBehaviour
         
         return fixedYPosition + yOffset;
     }
+    
+    /// <summary>
+    /// Показать эмоцию при спавне с задержкой
+    /// </summary>
+    /// <summary>
+    /// Настроить коллайдер с задержкой (чтобы рендерер успел инициализироваться)
+    /// </summary>
+    private IEnumerator SetupColliderDelayed(GameObject petInstance, Renderer petRenderer)
+    {
+        yield return null; // Подождать один кадр
+        
+        BoxCollider boxCollider = petInstance.GetComponent<BoxCollider>();
+        if (boxCollider != null && petRenderer != null)
+        {
+            Bounds bounds = petRenderer.bounds;
+            // Использовать локальные размеры относительно питомца
+            Vector3 localSize = bounds.size;
+            Vector3 localCenter = petInstance.transform.InverseTransformPoint(bounds.center);
+            
+            boxCollider.size = localSize;
+            boxCollider.center = localCenter;
+            boxCollider.isTrigger = true; // Убедиться, что триггер установлен (чтобы персонаж проходил сквозь питомца)
+            
+            Debug.Log($"[PetSpawner] Коллайдер настроен для питомца: size={localSize}, center={localCenter}, isTrigger={boxCollider.isTrigger}");
+        }
+    }
+    
+    private IEnumerator ShowSpawnEmotionDelayed(PetEmotionUI emotionUI)
+    {
+        Debug.Log("[PetSpawner] ShowSpawnEmotionDelayed начата");
+        
+        // Подождать несколько кадров, чтобы Awake и Start успели выполниться
+        yield return new WaitForSeconds(0.2f);
+        
+        Debug.Log($"[PetSpawner] После задержки, emotionUI: {emotionUI != null}, gameObject активен: {emotionUI?.gameObject.activeInHierarchy}");
+        
+        // Показать эмоцию
+        if (emotionUI != null && emotionUI.gameObject.activeInHierarchy)
+        {
+            Debug.Log("[PetSpawner] Вызываю ShowSpawnEmotion");
+            emotionUI.ShowSpawnEmotion();
+        }
+        else
+        {
+            Debug.LogError($"[PetSpawner] emotionUI стал null или неактивен после задержки! emotionUI: {emotionUI != null}, active: {emotionUI?.gameObject.activeInHierarchy}");
+        }
+    }
+    
 }
 

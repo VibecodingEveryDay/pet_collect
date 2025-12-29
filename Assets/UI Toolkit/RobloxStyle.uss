@@ -358,6 +358,14 @@
     box-shadow: 0 6px 15px rgba(255, 215, 0, 0.5);
 }
 
+/* Выделение активных питомцев в инвентаре */
+.pet-slot.active-pet {
+    border-color: #ffd700;
+    border-width: 5px;
+    background-color: #fffacd;
+    box-shadow: 0 6px 15px rgba(255, 215, 0, 0.5);
+}
+
 .pet-emoji {
     font-size: 32px;
     width: 45px;
@@ -679,4 +687,44 @@
     -unity-text-align: middle-center;
     -unity-text-outline-width: 4px;
     -unity-text-outline-color: rgba(0, 0, 0, 0.8);
+}
+
+/* Панель подсказок */
+.hint-panel {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
+    height: 80px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 18px;
+    padding-left: 15px;
+    padding-right: 15px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    z-index: 99;
+}
+
+.hint-text {
+    color: white;
+    font-size: 18px;
+    margin-right: 10px;
+}
+
+.hint-icons-container {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.hint-icon {
+    width: 40px;
+    height: 40px;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }

@@ -1,0 +1,3 @@
+﻿Build path: A:/CODE/unity_builds/pet_collect
+Build number: 2
+PluginYG version: 2.007

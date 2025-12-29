@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 
 public class CrystalSpawner : MonoBehaviour
@@ -39,6 +40,8 @@ public class CrystalSpawner : MonoBehaviour
     }
     
     private List<GameObject> spawnedCrystals = new List<GameObject>();
+    private int initialCrystalCount = 0; // Изначальное количество кристаллов
+    private bool hasCheckedRespawn = false; // Флаг, чтобы не спавнить несколько раз подряд
     
     private void Start()
     {
@@ -50,6 +53,49 @@ public class CrystalSpawner : MonoBehaviour
         {
             SpawnCrystals();
         }
+    }
+    
+    /// <summary>
+    /// Очистить кристаллы при уничтожении объекта
+    /// </summary>
+    private void OnDestroy()
+    {
+        // Очистить все кристаллы при уничтожении спавнера
+        foreach (GameObject crystal in spawnedCrystals)
+        {
+            if (crystal != null)
+            {
+#if UNITY_EDITOR
+                DestroyImmediate(crystal);
+#else
+                Destroy(crystal);
+#endif
+            }
+        }
+        spawnedCrystals.Clear();
+    }
+    
+    /// <summary>
+    /// Очистить кристаллы при выходе из приложения
+    /// </summary>
+    private void OnApplicationQuit()
+    {
+        // Очистить все кристаллы при выходе из приложения
+        // Создаем копию списка, чтобы избежать ошибки изменения коллекции во время перечисления
+        List<GameObject> crystalsToDestroy = new List<GameObject>(spawnedCrystals);
+        
+        foreach (GameObject crystal in crystalsToDestroy)
+        {
+            if (crystal != null)
+            {
+#if UNITY_EDITOR
+                DestroyImmediate(crystal);
+#else
+                Destroy(crystal);
+#endif
+            }
+        }
+        spawnedCrystals.Clear();
     }
     
     /// <summary>
@@ -73,22 +119,22 @@ public class CrystalSpawner : MonoBehaviour
             return;
         }
         
-        // Попытаться загрузить модели
+        // Попытаться загрузить префабы кристаллов
         string[] crystalNames = { "Crystal1", "Crystal2", "Crystal3", "Crystal4", "Crystal5" };
         
 #if UNITY_EDITOR
-        // В редакторе пробуем разные пути
+        // В редакторе пробуем разные пути для префабов
         for (int i = 0; i < crystalPrefabs.Length && i < crystalNames.Length; i++)
         {
             if (crystalPrefabs[i] == null)
             {
                 GameObject loaded = null;
                 
-                // Попытка 1: Загрузить как префаб из Assets
+                // Попытка 1: Загрузить префаб из Assets/Assets/Crystals/
                 string[] possiblePaths = {
-                    $"Assets/assets/Crystals/{crystalNames[i]}.glb",
-                    $"Assets/assets/Crystals/{crystalNames[i]}",
-                    $"Assets/Crystals/{crystalNames[i]}.glb",
+                    $"Assets/Assets/Crystals/{crystalNames[i]}.prefab",
+                    $"Assets/Assets/Crystals/{crystalNames[i]}",
+                    $"Assets/Crystals/{crystalNames[i]}.prefab",
                     $"Assets/Crystals/{crystalNames[i]}"
                 };
                 
@@ -101,10 +147,10 @@ public class CrystalSpawner : MonoBehaviour
                     }
                 }
                 
-                // Попытка 2: Поиск по имени в проекте
+                // Попытка 2: Поиск по имени в проекте (только префабы)
                 if (loaded == null)
                 {
-                    string[] guids = UnityEditor.AssetDatabase.FindAssets($"{crystalNames[i]} t:GameObject");
+                    string[] guids = UnityEditor.AssetDatabase.FindAssets($"{crystalNames[i]} t:Prefab");
                     if (guids.Length > 0)
                     {
                         string assetPath = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
@@ -161,6 +207,10 @@ public class CrystalSpawner : MonoBehaviour
     {
         // Очистить ранее заспавненные кристаллы
         ClearCrystals();
+        
+        // Сохранить изначальное количество кристаллов
+        initialCrystalCount = crystalCount;
+        hasCheckedRespawn = false;
         
         // Проверить наличие моделей
         List<GameObject> availablePrefabs = new List<GameObject>();
@@ -253,8 +303,8 @@ public class CrystalSpawner : MonoBehaviour
                     continue;
                 }
                 
-                // Увеличить масштаб кристалла в 25 раз
-                crystal.transform.localScale = Vector3.one * 25f;
+                // Уменьшить масштаб кристалла на 25% + еще 10%
+                crystal.transform.localScale = Vector3.one * 0.3375f;
                 
                 // Добавить случайный поворот для разнообразия
                 crystal.transform.rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
@@ -427,6 +477,23 @@ public class CrystalSpawner : MonoBehaviour
             spawnedCrystals.Remove(crystal);
             Destroy(crystal);
         }
+        
+        // Проверить, нужно ли заспавнить новые кристаллы
+        CheckAndRespawnCrystals();
+    }
+    
+    /// <summary>
+    /// Вызывается при уничтожении кристалла
+    /// </summary>
+    public void OnCrystalDestroyed(GameObject crystal)
+    {
+        if (spawnedCrystals.Contains(crystal))
+        {
+            spawnedCrystals.Remove(crystal);
+        }
+        
+        // Проверить, нужно ли заспавнить новые кристаллы
+        CheckAndRespawnCrystals();
     }
     
     /// <summary>
@@ -435,6 +502,138 @@ public class CrystalSpawner : MonoBehaviour
     public int GetSpawnedCrystalCount()
     {
         return spawnedCrystals.Count;
+    }
+    
+    /// <summary>
+    /// Проверить количество кристаллов и заспавнить новые, если осталось 50% или меньше
+    /// </summary>
+    private void CheckAndRespawnCrystals()
+    {
+        // Если изначальное количество не установлено, не проверять
+        if (initialCrystalCount <= 0)
+        {
+            return;
+        }
+        
+        // Очистить null ссылки из списка
+        spawnedCrystals.RemoveAll(c => c == null);
+        
+        // Получить текущее количество живых кристаллов
+        int currentCount = CrystalManager.GetCrystalCount();
+        
+        // Если осталось 50% или меньше от изначального количества
+        float threshold = initialCrystalCount * 0.5f;
+        if (currentCount <= threshold && !hasCheckedRespawn)
+        {
+            hasCheckedRespawn = true;
+            
+            // Вычислить, сколько нужно заспавнить (50% от изначального)
+            int crystalsToSpawn = Mathf.RoundToInt(initialCrystalCount * 0.5f);
+            
+            Debug.Log($"[CrystalSpawner] Кристаллов осталось {currentCount} из {initialCrystalCount} (50% = {threshold}). Заспавню {crystalsToSpawn} новых кристаллов.");
+            
+            // Заспавнить дополнительные кристаллы
+            SpawnAdditionalCrystals(crystalsToSpawn);
+        }
+    }
+    
+    /// <summary>
+    /// Заспавнить дополнительные кристаллы без очистки существующих
+    /// </summary>
+    private void SpawnAdditionalCrystals(int count)
+    {
+        // Проверить наличие моделей
+        List<GameObject> availablePrefabs = new List<GameObject>();
+        foreach (GameObject prefab in crystalPrefabs)
+        {
+            if (prefab != null)
+            {
+                availablePrefabs.Add(prefab);
+            }
+        }
+        
+        if (availablePrefabs.Count == 0)
+        {
+            Debug.LogWarning("[CrystalSpawner] Нет доступных префабов кристаллов для спавна!");
+            return;
+        }
+        
+        int spawned = 0;
+        int attempts = 0;
+        int maxAttempts = count * 500;
+        
+        while (spawned < count && attempts < maxAttempts)
+        {
+            attempts++;
+            
+            // Получить случайную позицию
+            Vector3 spawnPosition = GetRandomSpawnPosition();
+            
+            // Проверить минимальное расстояние от других кристаллов (если не отключено)
+            if (!ignoreMinDistance && !IsPositionValid(spawnPosition))
+            {
+                continue;
+            }
+            
+            // Выбрать случайную модель
+            GameObject randomPrefab = availablePrefabs[Random.Range(0, availablePrefabs.Count)];
+            
+            if (randomPrefab == null)
+            {
+                continue;
+            }
+            
+            try
+            {
+                // Спавнить кристалл
+                GameObject crystal = Instantiate(randomPrefab, spawnPosition, Quaternion.identity);
+                
+                if (crystal == null)
+                {
+                    continue;
+                }
+                
+                crystal.name = $"Crystal_{spawnedCrystals.Count + spawned + 1}_{randomPrefab.name}";
+                
+                // Добавить компонент Crystal ПЕРЕД изменением масштаба
+                Crystal crystalComponent = crystal.GetComponent<Crystal>();
+                if (crystalComponent == null)
+                {
+                    crystalComponent = crystal.AddComponent<Crystal>();
+                }
+                
+                if (crystalComponent == null)
+                {
+                    DestroyImmediate(crystal);
+                    continue;
+                }
+                
+                // Уменьшить масштаб кристалла на 25% + еще 10%
+                crystal.transform.localScale = Vector3.one * 0.3375f;
+                
+                // Добавить случайный поворот для разнообразия
+                crystal.transform.rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
+                
+                spawnedCrystals.Add(crystal);
+                spawned++;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[CrystalSpawner] Ошибка при спавне дополнительного кристалла: {e.Message}");
+            }
+        }
+        
+        // Сбросить флаг после небольшой задержки, чтобы не спавнить несколько раз подряд
+        StartCoroutine(ResetRespawnFlag());
+    }
+    
+    /// <summary>
+    /// Сбросить флаг проверки респавна через небольшую задержку
+    /// </summary>
+    private IEnumerator ResetRespawnFlag()
+    {
+        yield return new WaitForSeconds(1f);
+        hasCheckedRespawn = false;
     }
     
     /// <summary>
@@ -532,8 +731,8 @@ public class CrystalSpawner : MonoBehaviour
             crystalComponent = crystal.AddComponent<Crystal>();
         }
         
-        // Увеличить масштаб кристалла в 25 раз
-        crystal.transform.localScale = Vector3.one * 25f;
+        // Уменьшить масштаб кристалла на 25% + еще 10%
+        crystal.transform.localScale = Vector3.one * 0.23625f;
     }
     
     // Визуализация области спавна в редакторе

@@ -211,6 +211,9 @@ public class PetNotificationUI : MonoBehaviour
         Color rarityColor = PetHatchingManager.GetRarityColor(rarity);
         notificationText.style.color = new StyleColor(rarityColor);
         
+        // Применить адаптивные стили для мобильных устройств
+        ApplyAdaptiveStyles(notificationText, container);
+        
         Debug.Log($"Текст уведомления установлен: {notificationText.text}, цвет: {rarityColor}");
         
         // Настроить позиционирование уведомления (полный экран с центрированием)
@@ -339,6 +342,90 @@ public class PetNotificationUI : MonoBehaviour
         {
             notification.RemoveFromHierarchy();
             Debug.Log("Уведомление удалено");
+        }
+    }
+    
+    /// <summary>
+    /// Применить адаптивные стили для мобильных устройств
+    /// </summary>
+    private void ApplyAdaptiveStyles(Label notificationText, VisualElement container)
+    {
+        if (notificationText == null || container == null)
+            return;
+        
+        bool isMobile = PlatformDetector.IsMobile();
+        bool isTablet = PlatformDetector.IsTablet();
+        
+        if (isMobile || isTablet)
+        {
+            // Определить тип устройства
+            float screenWidth = PlatformDetector.GetScreenWidth();
+            float screenHeight = PlatformDetector.GetScreenHeight();
+            float aspectRatio = screenWidth / screenHeight;
+            
+            // Проверить, является ли устройство телефоном
+            bool isPhone = isMobile && !isTablet;
+            
+            // Проверить, является ли устройство extra small (очень маленький экран)
+            bool isExtraSmall = aspectRatio >= 1.7f && aspectRatio <= 1.85f && screenWidth < 1400f && isPhone;
+            
+            float fontSize;
+            bool allowWrap = false;
+            
+            if (isExtraSmall)
+            {
+                // Для extra small устройств (например, iPhone SE)
+                fontSize = 24f;
+                allowWrap = true;
+            }
+            else if (isPhone)
+            {
+                // Для телефонов
+                fontSize = 28f;
+                allowWrap = true;
+            }
+            else if (isTablet)
+            {
+                // Для планшетов - уменьшить на 25% (было 36f, стало 27f)
+                fontSize = 45f * 1f; // 27px
+                allowWrap = false;
+            }
+            else
+            {
+                // Для других мобильных устройств (старая логика для совместимости)
+                fontSize = 36f;
+                allowWrap = false;
+            }
+            
+            // Применить размер шрифта
+            notificationText.style.fontSize = new StyleLength(fontSize);
+            
+            // Разрешить перенос текста на маленьких экранах
+            if (allowWrap)
+            {
+                notificationText.style.whiteSpace = WhiteSpace.Normal;
+                // Установить максимальную ширину для переноса
+                float maxWidth = screenWidth * 0.85f; // 85% ширины экрана
+                container.style.maxWidth = new StyleLength(maxWidth);
+                notificationText.style.maxWidth = new StyleLength(maxWidth);
+            }
+            else
+            {
+                // Для планшетов не устанавливаем whiteSpace, используем CSS значение (nowrap)
+            }
+            
+            // Добавить отступы для мобильных устройств
+            container.style.paddingLeft = new StyleLength(20f);
+            container.style.paddingRight = new StyleLength(20f);
+            notificationText.style.marginLeft = new StyleLength(0f);
+            notificationText.style.marginRight = new StyleLength(0f);
+        }
+        else
+        {
+            // Для десктопа уменьшить на 25%, затем еще на 10% (56px * 0.75 * 0.9 = 37.8px)
+            float desktopFontSize = 56f * 0.75f * 0.9f;
+            notificationText.style.fontSize = new StyleLength(desktopFontSize);
+            // whiteSpace уже установлен в CSS как nowrap, не нужно переопределять
         }
     }
     

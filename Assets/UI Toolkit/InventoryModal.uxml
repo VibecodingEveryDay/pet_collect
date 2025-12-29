@@ -8,9 +8,9 @@
                     <ui:Label text="Все питомцы" class="section-title" />
                     <ui:VisualElement name="pets-grid" class="pets-grid" />
                     <ui:VisualElement name="pagination-controls" class="pagination-controls">
-                        <ui:Button name="prev-page-button" class="page-button" text="◄" />
+                        <ui:Button name="prev-page-button" class="page-button" text="&lt;" />
                         <ui:Label name="page-info" class="page-info" text="Страница 1 из 3" />
-                        <ui:Button name="next-page-button" class="page-button" text="►" />
+                        <ui:Button name="next-page-button" class="page-button" text="&gt;" />
                     </ui:VisualElement>
                 </ui:VisualElement>
                 

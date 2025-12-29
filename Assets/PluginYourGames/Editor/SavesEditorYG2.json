@@ -1,0 +1,30 @@
+{
+    "intExample": 5,
+    "strExample": "Hello!",
+    "boolExample": [
+        false,
+        false,
+        false,
+        false
+    ],
+    "idSave": 207,
+    "coins": 0,
+    "pets": [
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 8318,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare2.glb"
+        }
+    ],
+    "crystalHPLevel": 1,
+    "currentMap": "Map1",
+    "mapUpgradePurchased": true
+}
