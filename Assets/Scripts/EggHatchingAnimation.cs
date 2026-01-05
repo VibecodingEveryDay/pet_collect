@@ -8,11 +8,6 @@ public class EggHatchingAnimation : MonoBehaviour
 {
     [Header("Настройки анимации")]
     [SerializeField] private float hatchingDuration = 7f;
-    [SerializeField] private float colorChangeStartTime = 4f; // С 4 секунды начинается изменение цвета лучей
-    
-    [Header("Мерцание")]
-    [SerializeField] private float flickerSpeed = 2f;
-    [SerializeField] private float flickerIntensity = 0.3f;
     
     [Header("Покачивание")]
     [SerializeField] private float wobbleSpeed = 1.5f;
@@ -24,7 +19,6 @@ public class EggHatchingAnimation : MonoBehaviour
     private PetRarity petRarity;
     private System.Action<PetRarity> onComplete;
     private Material eggMaterial;
-    private Light eggLight;
     private GameObject lightningEffectInstance;
     private Vector3 originalPosition;
     private Quaternion originalRotation;
@@ -55,7 +49,7 @@ public class EggHatchingAnimation : MonoBehaviour
     /// </summary>
     private void SetupAnimationComponents()
     {
-        // Найти Material для мерцания
+        // Найти Material яйца (если нужен для других эффектов)
         Renderer renderer = GetComponentInChildren<Renderer>();
         if (renderer != null)
         {
@@ -64,20 +58,6 @@ public class EggHatchingAnimation : MonoBehaviour
             {
                 eggMaterial = renderer.material = new Material(Shader.Find("Standard"));
             }
-        }
-        
-        // Найти или создать Light для мерцания
-        eggLight = GetComponentInChildren<Light>();
-        if (eggLight == null)
-        {
-            GameObject lightObj = new GameObject("EggLight");
-            lightObj.transform.SetParent(transform);
-            lightObj.transform.localPosition = Vector3.zero;
-            eggLight = lightObj.AddComponent<Light>();
-            eggLight.type = LightType.Point;
-            eggLight.range = 5f;
-            eggLight.intensity = 1f;
-            eggLight.color = Color.white;
         }
         
         // Загрузить префаб эффекта молнии, если не назначен вручную
@@ -123,17 +103,8 @@ public class EggHatchingAnimation : MonoBehaviour
         {
             elapsedTime += Time.deltaTime;
             
-            // Мерцание
-            UpdateFlicker(elapsedTime);
-            
             // Покачивание
             UpdateWobble(elapsedTime);
-            
-            // Изменение цвета света с 4 секунды
-            if (elapsedTime >= colorChangeStartTime)
-            {
-                UpdateLightColor(elapsedTime);
-            }
             
             yield return null;
         }
@@ -152,41 +123,74 @@ public class EggHatchingAnimation : MonoBehaviour
             return;
         }
         
-        // Создать экземпляр эффекта на 1 единицу выше яйца
+        // Создать экземпляр эффекта на 1.25 единицы выше яйца
         Vector3 effectPosition = transform.position + Vector3.up * 1.25f;
         lightningEffectInstance = Instantiate(lightningEffectPrefab, effectPosition, Quaternion.identity);
         lightningEffectInstance.name = "LightningEffect_Egg";
         
-        // Разместить эффект на позиции яйца + 1 единица вверх
+        // Разместить эффект на позиции яйца + 1.25 единицы вверх
         lightningEffectInstance.transform.position = effectPosition;
         
-        // Уменьшить масштаб эффекта на 20% (до 80% от исходного размера)
-        lightningEffectInstance.transform.localScale = Vector3.one * 0.8f;
+        // Увеличить масштаб эффекта в 2 раза (базовый размер уже увеличен в 2 раза в PetBehavior)
+        lightningEffectInstance.transform.localScale = Vector3.one * 2f;
         
-        // Можно сделать эффект дочерним объектом яйца, чтобы он двигался вместе с ним
+        // Сделать эффект дочерним объектом яйца, чтобы он двигался вместе с ним
         lightningEffectInstance.transform.SetParent(transform);
+        
+        // Убрать иконки Unity префаба (Gizmos) - скрыть все компоненты, которые показывают иконки
+        HidePrefabIcons(lightningEffectInstance);
     }
     
     /// <summary>
-    /// Обновить мерцание яйца
+    /// Скрыть иконки Unity префаба (Gizmos)
     /// </summary>
-    private void UpdateFlicker(float time)
+    private void HidePrefabIcons(GameObject effect)
     {
-        float flickerValue = Mathf.Sin(time * flickerSpeed) * flickerIntensity + (1f - flickerIntensity);
+        if (effect == null) return;
         
-        // Мерцание через Light
-        if (eggLight != null)
+        // Скрыть иконки для всех компонентов, которые могут их показывать
+        Component[] allComponents = effect.GetComponentsInChildren<Component>(true);
+        foreach (Component component in allComponents)
         {
-            eggLight.intensity = flickerValue;
+            if (component != null && component is MonoBehaviour)
+            {
+                // Скрыть иконки через hideFlags
+                component.hideFlags = HideFlags.HideInInspector | HideFlags.DontSave;
+            }
         }
         
-        // Мерцание через Material (альфа-канал)
-        if (eggMaterial != null)
+        // Скрыть иконки для ParticleSystem (часто показывает иконки)
+        ParticleSystem[] particles = effect.GetComponentsInChildren<ParticleSystem>(true);
+        foreach (ParticleSystem particle in particles)
         {
-            Color color = eggMaterial.color;
-            color.a = flickerValue;
-            eggMaterial.color = color;
+            if (particle != null)
+            {
+                particle.hideFlags = HideFlags.HideInInspector | HideFlags.DontSave;
+            }
         }
+        
+        // Скрыть иконки для Light компонентов
+        Light[] lights = effect.GetComponentsInChildren<Light>(true);
+        foreach (Light light in lights)
+        {
+            if (light != null)
+            {
+                light.hideFlags = HideFlags.HideInInspector | HideFlags.DontSave;
+            }
+        }
+        
+        // Скрыть иконки для AudioSource
+        AudioSource[] audioSources = effect.GetComponentsInChildren<AudioSource>(true);
+        foreach (AudioSource audio in audioSources)
+        {
+            if (audio != null)
+            {
+                audio.hideFlags = HideFlags.HideInInspector | HideFlags.DontSave;
+            }
+        }
+        
+        // Также скрыть иконки для самого GameObject
+        effect.hideFlags = HideFlags.HideInHierarchy | HideFlags.DontSave;
     }
     
     /// <summary>
@@ -207,19 +211,6 @@ public class EggHatchingAnimation : MonoBehaviour
         transform.rotation = originalRotation * Quaternion.Euler(wobbleX, 0f, wobbleZ);
     }
     
-    /// <summary>
-    /// Обновить цвет света (с 4 секунды)
-    /// </summary>
-    private void UpdateLightColor(float time)
-    {
-        if (eggLight != null)
-        {
-            float colorProgress = (time - colorChangeStartTime) / (hatchingDuration - colorChangeStartTime);
-            colorProgress = Mathf.Clamp01(colorProgress);
-            Color currentColor = Color.Lerp(Color.white, rarityColor, colorProgress);
-            eggLight.color = Color.Lerp(Color.white, currentColor, colorProgress * 0.5f);
-        }
-    }
     
     /// <summary>
     /// Завершение анимации

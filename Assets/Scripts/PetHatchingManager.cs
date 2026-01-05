@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -231,6 +232,9 @@ public class PetHatchingManager : MonoBehaviour
         // Убедиться, что объект активен
         currentEgg.SetActive(true);
         
+        // Удалить все UI иконки (Canvas, Image и т.д.) с яйца, оставить только само яйцо и эффекты
+        RemoveEggIcons(currentEgg);
+        
         // Добавить компонент анимации вылупления
         EggHatchingAnimation hatchingAnimation = currentEgg.AddComponent<EggHatchingAnimation>();
         hatchingAnimation.Initialize(currentRarity, OnHatchingComplete);
@@ -276,6 +280,27 @@ public class PetHatchingManager : MonoBehaviour
             PlayerPrefs.Save();
         }
         
+        // Автоматически активировать питомца, если активных питомцев < 5
+        if (PetSpawner.Instance != null)
+        {
+            List<PetData> activePets = PetSpawner.Instance.GetActivePetsList();
+            int activePetsCount = activePets != null ? activePets.Count : 0;
+            
+            if (activePetsCount < 5)
+            {
+                // Проверить, не заспавнен ли уже этот питомец
+                if (!PetSpawner.Instance.IsPetSpawned(newPet))
+                {
+                    Debug.Log($"[PetHatchingManager] Автоматически активирую нового питомца (активных: {activePetsCount}/5)");
+                    PetSpawner.Instance.SpawnPetInWorld(newPet);
+                }
+            }
+            else
+            {
+                Debug.Log($"[PetHatchingManager] Не активирую нового питомца автоматически (уже 5 активных)");
+            }
+        }
+        
         // Показать уведомление
         ShowPetNotification(finalRarity);
         
@@ -283,6 +308,14 @@ public class PetHatchingManager : MonoBehaviour
         InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
         if (inventoryUI != null)
         {
+            // Сначала обновить список активных питомцев из PetSpawner
+            var loadPetsMethod = typeof(InventoryUI).GetMethod("LoadPetsFromInventory", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (loadPetsMethod != null)
+            {
+                loadPetsMethod.Invoke(inventoryUI, null);
+            }
+            
             var updateMethod = typeof(InventoryUI).GetMethod("UpdateUI", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (updateMethod != null)
@@ -351,6 +384,85 @@ public class PetHatchingManager : MonoBehaviour
             default:
                 return Color.white;
         }
+    }
+    
+    /// <summary>
+    /// Удалить все UI иконки с яйца (Canvas, Image и т.д.)
+    /// Оставляет только само яйцо и эффекты (Light, эффект молнии)
+    /// </summary>
+    private void RemoveEggIcons(GameObject egg)
+    {
+        if (egg == null) return;
+        
+        // Найти все Canvas компоненты в яйце и его дочерних объектах
+        Canvas[] canvases = egg.GetComponentsInChildren<Canvas>(true);
+        foreach (Canvas canvas in canvases)
+        {
+            if (canvas != null)
+            {
+                // Удалить Canvas и все его дочерние объекты (иконки обычно на Canvas)
+                Destroy(canvas.gameObject);
+            }
+        }
+        
+        // Найти все Image компоненты, которые могут быть иконками
+        UnityEngine.UI.Image[] images = egg.GetComponentsInChildren<UnityEngine.UI.Image>(true);
+        foreach (UnityEngine.UI.Image image in images)
+        {
+            if (image != null)
+            {
+                // Проверить, не является ли это частью Canvas (который уже удален)
+                Canvas parentCanvas = image.GetComponentInParent<Canvas>();
+                if (parentCanvas == null)
+                {
+                    // Если это не часть Canvas, удалить (это может быть отдельная иконка)
+                    Destroy(image.gameObject);
+                }
+            }
+        }
+        
+        // Найти все SpriteRenderer компоненты, которые могут быть иконками (лампочка, сюрикены и т.д.)
+        SpriteRenderer[] spriteRenderers = egg.GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (SpriteRenderer spriteRenderer in spriteRenderers)
+        {
+            if (spriteRenderer != null)
+            {
+                // Удалить ВСЕ SpriteRenderer - это иконки (лампочка, сюрикены и т.д.)
+                // Модель яйца использует MeshRenderer, а не SpriteRenderer
+                Destroy(spriteRenderer.gameObject);
+            }
+        }
+        
+        // Удалить eggLight (Light компонент)
+        Light[] lights = egg.GetComponentsInChildren<Light>(true);
+        foreach (Light light in lights)
+        {
+            if (light != null)
+            {
+                // Удалить Light компонент и его GameObject
+                Destroy(light.gameObject);
+            }
+        }
+        
+        // Удалить lightningEffect_egg (эффект молнии, созданный через код)
+        Transform[] allChildren = egg.GetComponentsInChildren<Transform>(true);
+        foreach (Transform child in allChildren)
+        {
+            if (child != null && child != egg.transform)
+            {
+                string childName = child.gameObject.name.ToLower();
+                // Удалить объекты, которые могут быть иконками или созданными эффектами
+                if (childName.Contains("icon") || childName.Contains("lightbulb") || childName.Contains("bulb") || 
+                    childName.Contains("shuriken") || childName.Contains("sprite") || childName.Contains("ui") ||
+                    childName.Contains("canvas") || childName.Contains("hint") || childName.Contains("interact") ||
+                    childName.Contains("egglight") || childName.Contains("lightningeffect_egg") || childName.Contains("lightningeffect"))
+                {
+                    Destroy(child.gameObject);
+                }
+            }
+        }
+        
+        Debug.Log($"[PetHatchingManager] Удалены все UI иконки, eggLight и lightningEffect_egg с яйца. Остались только яйцо и эффект молнии из ассетов.");
     }
     
     /// <summary>

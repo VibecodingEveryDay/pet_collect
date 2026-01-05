@@ -7,13 +7,130 @@
         false,
         false
     ],
-    "idSave": 207,
-    "coins": 0,
+    "idSave": 8675,
+    "coins": 31160,
     "pets": [
+        {
+            "rarity": 1,
+            "petName": "Питомец эпического",
+            "petID": 4765,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.5,
+                "g": 0.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/epic.glb"
+        },
         {
             "rarity": 0,
             "petName": "Питомец редкого",
-            "petID": 8318,
+            "petID": 4002,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare4.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 6409,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare4.glb"
+        },
+        {
+            "rarity": 1,
+            "petName": "Питомец эпического",
+            "petID": 5294,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.5,
+                "g": 0.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/epic.glb"
+        },
+        {
+            "rarity": 2,
+            "petName": "Питомец легендарного",
+            "petID": 8448,
+            "size": 1.0,
+            "petColor": {
+                "r": 1.0,
+                "g": 0.8399999737739563,
+                "b": 0.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/legendary.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 9404,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare4.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 1869,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare1.glb"
+        },
+        {
+            "rarity": 1,
+            "petName": "Питомец эпического",
+            "petID": 3176,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.5,
+                "g": 0.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/epic.glb"
+        },
+        {
+            "rarity": 2,
+            "petName": "Питомец легендарного",
+            "petID": 3430,
+            "size": 1.0,
+            "petColor": {
+                "r": 1.0,
+                "g": 0.8399999737739563,
+                "b": 0.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/legendary.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 7304,
             "size": 1.0,
             "petColor": {
                 "r": 0.0,
@@ -22,9 +139,251 @@
                 "a": 1.0
             },
             "petModelPath": "Assets/Assets/Pets/rare2.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 4494,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare1.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 5072,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare1.glb"
+        },
+        {
+            "rarity": 1,
+            "petName": "Питомец эпического",
+            "petID": 6439,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.5,
+                "g": 0.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/epic.glb"
+        },
+        {
+            "rarity": 1,
+            "petName": "Питомец эпического",
+            "petID": 4473,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.5,
+                "g": 0.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/epic.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 3190,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare1.glb"
+        },
+        {
+            "rarity": 2,
+            "petName": "Питомец легендарного",
+            "petID": 4468,
+            "size": 1.0,
+            "petColor": {
+                "r": 1.0,
+                "g": 0.8399999737739563,
+                "b": 0.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/legendary.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 3362,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare2.glb"
+        },
+        {
+            "rarity": 1,
+            "petName": "Питомец эпического",
+            "petID": 6916,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.5,
+                "g": 0.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/epic.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 6334,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare3.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 1641,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare4.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 2660,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare3.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 3546,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare3.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 2147,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare3.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 9427,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare1.glb"
+        },
+        {
+            "rarity": 1,
+            "petName": "Питомец эпического",
+            "petID": 2135,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.5,
+                "g": 0.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/epic.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 6506,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare3.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 6185,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare2.glb"
+        },
+        {
+            "rarity": 0,
+            "petName": "Питомец редкого",
+            "petID": 9450,
+            "size": 1.0,
+            "petColor": {
+                "r": 0.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+            },
+            "petModelPath": "Assets/Assets/Pets/rare4.glb"
         }
     ],
-    "crystalHPLevel": 1,
+    "crystalHPLevel": 4,
     "currentMap": "Map1",
-    "mapUpgradePurchased": true
+    "mapUpgradePurchased": true,
+    "eggPrice": 100,
+    "activePetIDs": [
+        6506,
+        6185,
+        3176,
+        5294,
+        4765
+    ]
 }

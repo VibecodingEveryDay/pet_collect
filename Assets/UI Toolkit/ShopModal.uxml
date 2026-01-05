@@ -1,6 +1,9 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
     <ui:VisualElement name="modal-overlay" class="modal-overlay">
         <ui:VisualElement name="modal-container" class="modal-container shop-modal-container">
+            <ui:VisualElement name="close-shop-button" class="shop-close-button">
+                <ui:Label text="✕" />
+            </ui:VisualElement>
             <ui:VisualElement name="shop-content" class="shop-content">
                 <ui:Label text="Магазин" class="shop-title" />
                 
@@ -9,21 +12,30 @@
                     <ui:Button name="buy-egg-button" class="shop-item-button">
                         <ui:VisualElement name="egg-emoji" class="egg-emoji" />
                         <ui:Label text="Купить яйцо" class="shop-item-label" />
-                        <ui:Label name="egg-price" class="shop-item-price" text="100 💎" />
+                        <ui:VisualElement name="egg-price" class="shop-item-price">
+                            <ui:Label name="egg-price-text" class="shop-price-text" text="100" />
+                            <ui:VisualElement name="egg-price-icon" class="shop-price-icon" />
+                        </ui:VisualElement>
                     </ui:Button>
                     
                     <!-- Кнопка улучшения кристаллов -->
                     <ui:Button name="upgrade-crystal-button" class="shop-item-button">
                         <ui:VisualElement name="crystal-icon" class="crystal-icon" />
                         <ui:Label text="Улучшить кристаллы" class="shop-item-label" />
-                        <ui:Label name="crystal-upgrade-price" class="shop-item-price" text="200 💎" />
+                        <ui:VisualElement name="crystal-upgrade-price" class="shop-item-price">
+                            <ui:Label name="crystal-upgrade-price-text" class="shop-price-text" text="200" />
+                            <ui:VisualElement name="crystal-upgrade-price-icon" class="shop-price-icon" />
+                        </ui:VisualElement>
                     </ui:Button>
                     
                     <!-- Кнопка улучшения карты -->
                     <ui:Button name="upgrade-map-button" class="shop-item-button">
                         <ui:VisualElement name="map-emoji" class="egg-emoji" />
                         <ui:Label text="Улучшить карту: сумеречные долины" class="shop-item-label" />
-                        <ui:Label name="map-upgrade-price" class="shop-item-price" text="500 💎" />
+                        <ui:VisualElement name="map-upgrade-price" class="shop-item-price">
+                            <ui:Label name="map-upgrade-price-text" class="shop-price-text" text="500" />
+                            <ui:VisualElement name="map-upgrade-price-icon" class="shop-price-icon" />
+                        </ui:VisualElement>
                     </ui:Button>
                 </ui:VisualElement>
             </ui:VisualElement>

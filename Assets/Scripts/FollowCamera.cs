@@ -40,8 +40,6 @@ public class FollowCamera : MonoBehaviour
     [SerializeField] private float mouseSensitivity = 2.5f; // Чувствительность мыши
     [SerializeField] private float minVerticalAngle = -30f; // Минимальный угол наклона
     [SerializeField] private float maxVerticalAngle = 60f; // Максимальный угол наклона
-    [SerializeField] private bool lockCursor = true; // Блокировать курсор
-    [SerializeField] private float cursorShowDuration = 3f; // Длительность показа курсора после клика (секунды)
     
     [Header("Коллизии")]
     [SerializeField] private LayerMask collisionLayer = -1; // Слой для проверки коллизий
@@ -50,11 +48,9 @@ public class FollowCamera : MonoBehaviour
     
     private float currentYaw = 0f; // Горизонтальный угол (вокруг Y оси)
     private float currentPitch = 20f; // Вертикальный угол (наклон вверх/вниз)
-    private Vector3 currentVelocity; // Для плавного движения
-    private float cursorHideTimer = 0f; // Таймер для автоматического скрытия курсора после бездействия
     private bool wasModalOpen = false; // Флаг для отслеживания предыдущего состояния модального окна
-    private float cameraLockTimer = 0f; // Таймер блокировки камеры после клика (для desktop)
-    private const float CAMERA_LOCK_DURATION = 1.3f; // Длительность блокировки камеры после клика (секунды)
+    private bool isCursorLocked = false; // Состояние блокировки курсора
+    private bool cursorStateBeforeModal = false; // Состояние курсора перед открытием модального окна
     
     private void Start()
     {
@@ -95,66 +91,14 @@ public class FollowCamera : MonoBehaviour
             currentPitch = Mathf.Asin(directionToCamera.y / directionToCamera.magnitude) * Mathf.Rad2Deg;
         }
         
-        // Заблокировать курсор, если включено (только для WebGL, на Windows курсор всегда видим)
-#if !UNITY_WEBGL || UNITY_EDITOR
-        // На Windows/Editor курсор не скрываем, так как игра будет только на WebGL
+        // Инициализация курсора - по умолчанию видим и разблокирован
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
-#else
-        if (lockCursor)
-        {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-        }
-#endif
+        isCursorLocked = false;
     }
     
     private void Update()
     {
-        // Проверить, является ли устройство desktop
-        bool isDesktop = !PlatformDetector.IsMobile() && !PlatformDetector.IsTablet();
-        
-#if !UNITY_WEBGL || UNITY_EDITOR
-        // На Windows/Editor
-        Cursor.lockState = CursorLockMode.None;
-        
-        // На desktop: логика блокировки камеры после клика
-        if (isDesktop)
-        {
-            // Обработка клика мыши - показать курсор и заблокировать камеру на 1.3 секунды
-            if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2))
-            {
-                cameraLockTimer = CAMERA_LOCK_DURATION;
-                Cursor.visible = true;
-                cursorHideTimer = 0f; // Сбросить таймер скрытия
-            }
-            
-            // Обновить таймер блокировки камеры
-            if (cameraLockTimer > 0f)
-            {
-                cameraLockTimer -= Time.deltaTime;
-                
-                // Если время блокировки истекло, скрыть курсор
-                if (cameraLockTimer <= 0f)
-                {
-                    cameraLockTimer = 0f;
-                    Cursor.visible = false;
-                }
-            }
-            
-            // Обработка ввода мыши/тача - камера вращается, если не заблокирована
-            if (cameraLockTimer <= 0f)
-            {
-                HandleMouseInput();
-            }
-        }
-        else
-        {
-            // На мобильных устройствах (в редакторе) - курсор всегда видим, обычная логика
-            Cursor.visible = true;
-            HandleMouseInput();
-        }
-#else
         bool isModalOpen = InventoryUI.IsAnyModalOpen();
         
         // Если модальное окно открыто - курсор всегда видим и разблокирован
@@ -162,105 +106,38 @@ public class FollowCamera : MonoBehaviour
         {
             if (!wasModalOpen)
             {
-                // Модальное окно только что открылось - показать курсор
-                ShowCursor(true);
+                // Модальное окно только что открылось - сохранить текущее состояние курсора и показать его
+                cursorStateBeforeModal = isCursorLocked;
+                UnlockCursor();
             }
             wasModalOpen = true;
-            }
-            else
-            {
+        }
+        else
+        {
             // Модальное окно закрыто - стандартное управление курсором
             if (wasModalOpen)
             {
-                // Модальное окно только что закрылось - заблокировать курсор
-                HideCursor();
-            }
-            wasModalOpen = false;
-            
-            // Переключение блокировки курсора через Escape
-            if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                if (Cursor.lockState == CursorLockMode.Locked)
+                // Модальное окно только что закрылось - восстановить предыдущее состояние курсора
+                if (cursorStateBeforeModal)
                 {
-                    ShowCursor(true);
+                    LockCursor();
                 }
                 else
                 {
-                    HideCursor();
+                    UnlockCursor();
+                }
             }
-        }
-        
-            // На desktop: логика блокировки камеры после клика
-            if (isDesktop)
+            wasModalOpen = false;
+            
+            // Переключение блокировки курсора через TAB
+            if (Input.GetKeyDown(KeyCode.Tab))
             {
-                // Обработка клика мыши - показать курсор и заблокировать камеру на 1.3 секунды
-                if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2))
-                {
-                    cameraLockTimer = CAMERA_LOCK_DURATION;
-                    ShowCursor(true);
-                    cursorHideTimer = 0f; // Сбросить таймер скрытия
-                }
-                
-                // Обновить таймер блокировки камеры
-                if (cameraLockTimer > 0f)
-                {
-                    cameraLockTimer -= Time.deltaTime;
-                    
-                    // Если время блокировки истекло, скрыть курсор
-                    if (cameraLockTimer <= 0f)
-                    {
-                        cameraLockTimer = 0f;
-                        HideCursor();
-                    }
-                }
-                
-                // Обработка ввода мыши/тача - камера вращается, если не заблокирована
-                if (cameraLockTimer <= 0f)
-                {
-                    HandleMouseInput();
-                }
+                ToggleCursorLock();
             }
-            else
-            {
-                // На мобильных устройствах - стандартная логика (без блокировки после клика)
-                // Обработка клика мыши - показать курсор при клике
-                if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2))
-                {
-                    if (Cursor.lockState == CursorLockMode.Locked)
-                    {
-                        ShowCursor(true);
-                    }
-                    else
-                    {
-                        // Сбросить таймер при клике, если курсор уже видим
-                        cursorHideTimer = cursorShowDuration;
-                    }
-                }
-                
-                // Автоматическое скрытие курсора после бездействия
-                if (Cursor.lockState == CursorLockMode.None && Cursor.visible)
-                {
-                    float mouseMovement = Mathf.Abs(Input.GetAxis("Mouse X")) + Mathf.Abs(Input.GetAxis("Mouse Y"));
-                    
-                    if (mouseMovement > 0.01f)
-                    {
-                        cursorHideTimer = cursorShowDuration;
-                    }
-                    else if (cursorHideTimer > 0f)
-                    {
-                        cursorHideTimer -= Time.deltaTime;
-                        if (cursorHideTimer <= 0f && lockCursor)
-                        {
-                            HideCursor();
-                        }
-                    }
-                }
-                
-                // Обработка ввода мыши/тача - камера вращается всегда
-                HandleMouseInput();
-            }
+            
+            // Обработка ввода мыши/тача для вращения камеры
+            HandleMouseInput();
         }
-#endif
     }
     
     private void LateUpdate()
@@ -280,8 +157,8 @@ public class FollowCamera : MonoBehaviour
         // Проверить коллизии и скорректировать позицию
         desiredPosition = CheckCollision(desiredPosition);
         
-        // Плавно переместить камеру к желаемой позиции
-        transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, 1f / smoothSpeed);
+        // Мгновенно переместить камеру к желаемой позиции (без инерции)
+        transform.position = desiredPosition;
         
         // Направить камеру на персонажа (с небольшим смещением вверх для лучшего обзора)
         Vector3 lookTarget = target.position + Vector3.up * height * 0.5f;
@@ -290,7 +167,8 @@ public class FollowCamera : MonoBehaviour
         if (lookDirection.magnitude > 0.1f)
         {
             Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * smoothSpeed);
+            // Мгновенный поворот камеры (без инерции)
+            transform.rotation = targetRotation;
         }
     }
     
@@ -317,16 +195,14 @@ public class FollowCamera : MonoBehaviour
         // Проверить, является ли устройство мобильным или планшетом
         bool isMobile = PlatformDetector.IsMobile();
         bool isTablet = PlatformDetector.IsTablet();
+        bool isDesktop = !isMobile && !isTablet;
         
         // Использовать touch input на мобильных устройствах (телефоны) И на планшетах
-        // Если YG2 SDK определил планшет, то используем touch input (даже если Input.touchSupported = false в редакторе)
         bool useTouchInput = isMobile || isTablet;
         
         if (useTouchInput && Input.touchCount > 0)
         {
             // На мобильных устройствах используем touch input
-            // Проверить все touch события и найти тот, который не на джойстике
-            // Это позволяет использовать джойстик одной рукой, а камеру - другой
             for (int i = 0; i < Input.touchCount; i++)
             {
                 Touch touch = Input.GetTouch(i);
@@ -336,45 +212,29 @@ public class FollowCamera : MonoBehaviour
                 
                 if (!isOnJoystick)
                 {
-                    // Обработать touch для вращения камеры
-                    // На мобильных устройствах чувствительность увеличена
                     if (touch.phase == TouchPhase.Moved || touch.phase == TouchPhase.Stationary)
                     {
-                        // Использовать deltaPosition для плавного вращения
-                        // Коэффициент 0.03f = увеличен на 50% от 0.02f (0.02f * 1.5 = 0.03f)
                         mouseX = touch.deltaPosition.x * mouseSensitivity * 0.03f;
                         mouseY = touch.deltaPosition.y * mouseSensitivity * 0.03f;
-                        break; // Использовать только первый touch, который не на джойстике
+                        break;
                     }
                 }
             }
         }
-        else
+        else if (isDesktop)
         {
-            // На десктопе камера вращается движением мыши (без клика)
-            // НО не должна вращаться при зажатой кнопке мыши (drag)
-            // Проверить, не находится ли клик на джойстике
+            // На desktop: камера вращается только при зажатой ПКМ (правая кнопка мыши)
             bool isOnJoystick = IsTouchOnJoystick(Input.mousePosition);
             
-            if (!isOnJoystick)
+            if (!isOnJoystick && Input.GetMouseButton(1)) // ПКМ зажата
             {
-                // Проверить, не зажата ли кнопка мыши (drag)
-                bool isMouseButtonDown = Input.GetMouseButton(0) || Input.GetMouseButton(1) || Input.GetMouseButton(2);
-                
-                // Если кнопка мыши не зажата, обрабатываем движение мыши для вращения камеры
-                if (!isMouseButtonDown)
-                {
-                    // На desktop уменьшаем чувствительность мыши в 2 раза
-                    bool isDesktop = !isMobile && !isTablet;
-                    float effectiveSensitivity = isDesktop ? mouseSensitivity * 0.5f : mouseSensitivity;
-                    mouseX = Input.GetAxis("Mouse X") * effectiveSensitivity;
-                    mouseY = Input.GetAxis("Mouse Y") * effectiveSensitivity;
-                }
-                // Если кнопка зажата - не вращаем камеру (drag не должен вращать камеру)
+                float effectiveSensitivity = mouseSensitivity * 0.5f;
+                mouseX = Input.GetAxis("Mouse X") * effectiveSensitivity;
+                mouseY = Input.GetAxis("Mouse Y") * effectiveSensitivity;
             }
         }
         
-        // В редакторе/симуляторе также обрабатываем touch, если есть (для тестирования мобильных устройств)
+        // В редакторе/симуляторе также обрабатываем touch, если есть
         #if UNITY_EDITOR
         if (Input.touchCount > 0 && isMobile)
         {
@@ -383,8 +243,6 @@ public class FollowCamera : MonoBehaviour
             
             if (!isOnJoystick && touch.phase == TouchPhase.Moved)
             {
-                // На мобильных устройствах чувствительность увеличена
-                // Коэффициент 0.03f = увеличен на 50% от 0.02f (0.02f * 1.5 = 0.03f)
                 mouseX = touch.deltaPosition.x * mouseSensitivity * 0.03f;
                 mouseY = touch.deltaPosition.y * mouseSensitivity * 0.03f;
             }
@@ -540,39 +398,44 @@ public class FollowCamera : MonoBehaviour
     }
     
     /// <summary>
-    /// Показать курсор и установить его в центр
+    /// Переключить блокировку курсора (TAB)
     /// </summary>
-    private void ShowCursor(bool centerIt)
+    private void ToggleCursorLock()
     {
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-        cursorHideTimer = cursorShowDuration;
-        
-        if (centerIt)
+        if (isCursorLocked)
         {
-            // Использовать корутину для установки курсора в центр с задержкой
-            StartCoroutine(SetCursorToCenterDelayed());
+            UnlockCursor();
+        }
+        else
+        {
+            LockCursor();
         }
     }
     
     /// <summary>
-    /// Скрыть курсор
+    /// Заблокировать курсор
     /// </summary>
-    private void HideCursor()
+    private void LockCursor()
     {
 #if !UNITY_WEBGL || UNITY_EDITOR
-        // На Windows/Editor курсор не скрываем, всегда видим
+        // На Windows/Editor курсор всегда видим, но можно заблокировать
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+#else
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+#endif
+        isCursorLocked = true;
+    }
+    
+    /// <summary>
+    /// Разблокировать курсор
+    /// </summary>
+    private void UnlockCursor()
+    {
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
-        cursorHideTimer = 0f;
-#else
-        if (lockCursor)
-        {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-        }
-        cursorHideTimer = 0f;
-#endif
+        isCursorLocked = false;
     }
     
     /// <summary>

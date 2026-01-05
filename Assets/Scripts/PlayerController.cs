@@ -163,6 +163,19 @@ public class PlayerController : MonoBehaviour
             return;
         }
         
+        // Проверка открытых модальных окон - блокировать движение, если открыто любое модальное окно
+        if (InventoryUI.IsAnyModalOpen())
+        {
+            // Остановить движение, если открыто модальное окно
+            moveDirectionToApply = Vector3.zero;
+            currentSpeed = 0f;
+            joystickInput = Vector2.zero; // Сбросить ввод джойстика
+            // НЕ блокируем CheckGrounded и UpdateAnimations, чтобы анимации продолжали работать
+            CheckGrounded();
+            UpdateAnimations();
+            return;
+        }
+        
         // Проверка на земле в начале Update для актуальности
         CheckGrounded();
         

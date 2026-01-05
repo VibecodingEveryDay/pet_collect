@@ -1,0 +1,101 @@
+========================================
+ТЕКСТЫ ДЛЯ ОФОРМЛЕНИЯ ИГРЫ НА YANDEX GAMES
+========================================
+
+1) ОПИСАНИЕ ДЛЯ SEO (160 символов)
+========================================
+
+РУССКИЙ:
+Собирай питомцев, добывай кристаллы и зарабатывай монеты! Вылупляй редких питомцев из яиц, улучшай кристаллы и расширяй свою коллекцию в увлекательной игре про питомцев.
+
+АНГЛИЙСКИЙ:
+Collect pets, mine crystals and earn coins! Hatch rare pets from eggs, upgrade crystals and expand your collection in an exciting pet collection game.
+
+========================================
+
+2) ОБ ИГРЕ (1000 символов)
+========================================
+
+РУССКИЙ:
+Добро пожаловать в увлекательный мир Pet Collect! Это захватывающая игра про коллекционирование питомцев, где каждый питомец уникален и обладает своими особенностями.
+
+В игре вас ждёт:
+• Сбор питомцев разных редкостей - от обычных до легендарных
+• Добыча кристаллов и заработок монет
+• Покупка яиц и вылупление новых питомцев
+• Улучшение кристаллов для увеличения их прочности
+• Разблокировка новых карт и локаций
+• Управление активными питомцами в мире
+
+Каждый питомец автоматически добывает кристаллы и зарабатывает для вас монеты. Чем реже питомец, тем больше монет он приносит! Собирайте коллекцию, улучшайте своих питомцев и становитесь лучшим коллекционером!
+
+Игра подходит для всех возрастов и не требует постоянного внимания - ваши питомцы работают даже когда вы не в игре. Начните своё приключение прямо сейчас!
+
+АНГЛИЙСКИЙ:
+Welcome to the exciting world of Pet Collect! This is an engaging pet collection game where every pet is unique and has its own characteristics.
+
+The game features:
+• Collecting pets of different rarities - from common to legendary
+• Mining crystals and earning coins
+• Buying eggs and hatching new pets
+• Upgrading crystals to increase their durability
+• Unlocking new maps and locations
+• Managing active pets in the world
+
+Each pet automatically mines crystals and earns coins for you. The rarer the pet, the more coins it brings! Collect your collection, upgrade your pets and become the best collector!
+
+The game is suitable for all ages and doesn't require constant attention - your pets work even when you're not in the game. Start your adventure right now!
+
+========================================
+
+3) КАК ИГРАТЬ (1000 символов)
+========================================
+
+РУССКИЙ:
+Управление в Pet Collect простое и интуитивное:
+
+ОСНОВНЫЕ ДЕЙСТВИЯ:
+• Движение: используйте WASD или стрелки на клавиатуре (на ПК) или виртуальный джойстик (на мобильных)
+• Прыжок: нажмите Пробел (на ПК) или кнопку прыжка (на мобильных)
+• Открыть магазин: нажмите на иконку магазина в правом верхнем углу
+• Открыть инвентарь: нажмите на иконку рюкзака в правом верхнем углу
+
+КАК ИГРАТЬ:
+1. Ваши питомцы автоматически добывают кристаллы и зарабатывают монеты
+2. Соберите достаточно монет и купите яйцо в магазине
+3. Дождитесь вылупления яйца - вы получите питомца случайной редкости
+4. Добавьте питомца в активные, чтобы он начал работать в мире
+5. Улучшайте кристаллы, чтобы они дольше служили
+6. Разблокируйте новые карты для расширения игрового мира
+
+СОВЕТЫ:
+• Редкие питомцы приносят больше монет
+• Если не хватает монет, посмотрите рекламу для получения недостающей суммы
+• Регулярно улучшайте кристаллы для максимальной эффективности
+• Собирайте коллекцию питомцев всех редкостей!
+
+АНГЛИЙСКИЙ:
+Controls in Pet Collect are simple and intuitive:
+
+BASIC ACTIONS:
+• Movement: use WASD or arrow keys on keyboard (PC) or virtual joystick (mobile)
+• Jump: press Space (PC) or jump button (mobile)
+• Open shop: click the shop icon in the top right corner
+• Open inventory: click the backpack icon in the top right corner
+
+HOW TO PLAY:
+1. Your pets automatically mine crystals and earn coins
+2. Collect enough coins and buy an egg in the shop
+3. Wait for the egg to hatch - you'll get a pet of random rarity
+4. Add the pet to active ones so it starts working in the world
+5. Upgrade crystals to make them last longer
+6. Unlock new maps to expand the game world
+
+TIPS:
+• Rare pets bring more coins
+• If you don't have enough coins, watch an ad to get the missing amount
+• Regularly upgrade crystals for maximum efficiency
+• Collect pets of all rarities!
+
+========================================
+

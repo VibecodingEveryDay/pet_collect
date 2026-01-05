@@ -21,8 +21,11 @@ MonoBehaviour:
     payingStatus: 0
   Localization:
     setLanguageMod: 1
+  RewardedAdv:
+    skipInterAdvAfterReward: 0
+    labelAdvSimLabel: 0
   Storage:
-    saveLocal: 0
+    saveLocal: 1
     saveCloud: 1
     flush: 0
   Basic:
@@ -79,6 +82,7 @@ MonoBehaviour:
     ownHost: 0
   platformToggles:
     setLanguageMod: 0
+    skipInterAdvAfterReward: 0
     saveLocal: 0
     saveCloud: 0
     autoPauseGame: 0

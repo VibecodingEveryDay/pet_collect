@@ -25,8 +25,10 @@ public class GameReadyManager : MonoBehaviour
     }
     
     [Header("Настройки загрузки")]
-    [SerializeField] private float minLoadTime = 1f; // Минимальное время загрузки (секунды)
+    [SerializeField] private float minLoadTime = 0.1f; // Минимальное время загрузки (секунды) - уменьшено для быстрой загрузки
     [SerializeField] private bool waitForSDK = true; // Ждать загрузки SDK
+    [SerializeField] private int maxComponentCheckAttempts = 5; // Максимум попыток проверки компонентов
+    [SerializeField] private float componentCheckInterval = 0.05f; // Интервал проверки компонентов (уменьшено)
     
     private bool sdkLoaded = false;
     private float loadStartTime;
@@ -94,52 +96,82 @@ public class GameReadyManager : MonoBehaviour
         // Ждать минимальное время загрузки
         yield return new WaitForSeconds(minLoadTime);
         
-        // Если нужно ждать SDK, ждем его загрузки
+        // Если нужно ждать SDK, ждем его загрузки (с таймаутом)
         if (waitForSDK)
         {
 #if EnvirData_yg || Storage_yg || Localization_yg
-            while (!sdkLoaded && !YG2.isSDKEnabled)
+            float sdkWaitStartTime = Time.time;
+            float sdkTimeout = 3f; // Таймаут ожидания SDK - 3 секунды
+            
+            while (!sdkLoaded && !YG2.isSDKEnabled && (Time.time - sdkWaitStartTime) < sdkTimeout)
             {
-                yield return new WaitForSeconds(0.1f);
+                yield return new WaitForSeconds(0.05f); // Уменьшено с 0.1f до 0.05f
+            }
+            
+            // Если SDK все еще не загружен после таймаута, продолжаем без него
+            if (!sdkLoaded && !YG2.isSDKEnabled)
+            {
+                Debug.LogWarning("[GameReadyManager] SDK не загрузился в течение таймаута, продолжаем без него");
             }
 #else
-            // Если SDK не используется, просто ждем немного
-            yield return new WaitForSeconds(0.5f);
+            // Если SDK не используется, пропускаем ожидание
 #endif
         }
         
-        // Ждать, пока все основные компоненты загрузятся
-        yield return WaitForComponents();
+        // Быстрая проверка основных компонентов (не блокируем загрузку)
+        yield return WaitForComponentsFast();
         
         // Игра готова - вызвать GameReadyAPI
         MarkGameAsReady();
     }
     
     /// <summary>
-    /// Ждать загрузки основных компонентов
+    /// Быстрая проверка основных компонентов (не блокирует загрузку)
     /// </summary>
-    private IEnumerator WaitForComponents()
+    private IEnumerator WaitForComponentsFast()
     {
-        // Ждать загрузки PlayerController
-        while (FindObjectOfType<PlayerController>() == null)
+        // Проверяем компоненты с ограниченным количеством попыток
+        int attempts = 0;
+        bool playerControllerFound = false;
+        bool cameraFound = false;
+        bool uiFound = false;
+        
+        while (attempts < maxComponentCheckAttempts && (!playerControllerFound || !cameraFound || !uiFound))
         {
-            yield return new WaitForSeconds(0.1f);
+            // Кешируем результаты поиска для одного кадра
+            if (!playerControllerFound)
+            {
+                playerControllerFound = FindObjectOfType<PlayerController>() != null;
+            }
+            
+            if (!cameraFound)
+            {
+                cameraFound = FindObjectOfType<FollowCamera>() != null;
+            }
+            
+            if (!uiFound)
+            {
+                uiFound = FindObjectOfType<InventoryUI>() != null;
+            }
+            
+            attempts++;
+            
+            // Если все компоненты найдены, выходим
+            if (playerControllerFound && cameraFound && uiFound)
+            {
+                break;
+            }
+            
+            yield return new WaitForSeconds(componentCheckInterval);
         }
         
-        // Ждать загрузки камеры
-        while (FindObjectOfType<FollowCamera>() == null)
-        {
-            yield return new WaitForSeconds(0.1f);
-        }
+        // Минимальная задержка для инициализации компонентов (уменьшена)
+        yield return new WaitForSeconds(0.1f);
         
-        // Ждать загрузки UI
-        while (FindObjectOfType<InventoryUI>() == null)
+        if (!playerControllerFound || !cameraFound || !uiFound)
         {
-            yield return new WaitForSeconds(0.1f);
+            Debug.LogWarning($"[GameReadyManager] Некоторые компоненты не найдены после {attempts} попыток. PlayerController: {playerControllerFound}, Camera: {cameraFound}, UI: {uiFound}");
         }
-        
-        // Дополнительная небольшая задержка для инициализации всех компонентов
-        yield return new WaitForSeconds(0.5f);
     }
     
     /// <summary>

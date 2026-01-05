@@ -6,11 +6,6 @@
             <ui:Label name="coin-amount" class="coin-amount" text="0" />
         </ui:VisualElement>
         
-        <!-- Кнопка магазина слева от рюкзака -->
-        <ui:Button name="shop-button" class="shop-button">
-            <ui:VisualElement name="shop-icon" class="shop-icon" />
-        </ui:Button>
-        
         <!-- Кнопка рюкзака в правом верхнем углу -->
         <ui:Button name="backpack-button" class="backpack-button">
             <ui:VisualElement name="backpack-icon" class="backpack-icon" />

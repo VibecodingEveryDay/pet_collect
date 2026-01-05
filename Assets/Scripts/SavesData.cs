@@ -22,6 +22,12 @@ namespace YG
         
         // Покупка улучшенной карты
         public bool mapUpgradePurchased = false;
+        
+        // Цена яйца (увеличивается в 2 раза после каждой покупки)
+        public int eggPrice = 100; // Начальная цена яйца (сброшена до 100)
+        
+        // Активные питомцы (ID питомцев, которые заспавнены в мире)
+        public List<int> activePetIDs = new List<int>();
     }
     
     /// <summary>

@@ -1,0 +1,13 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="modal-overlay" class="modal-overlay">
+        <ui:VisualElement name="modal-container" class="modal-container ad-reward-modal-container">
+            <ui:VisualElement name="ad-reward-content" class="ad-reward-content">
+                <ui:Label name="ad-reward-text" class="ad-reward-text" text="Не хватает кристаллов! Посмотрите рекламу и получите 100 кристаллов!" />
+                <ui:Button name="watch-ad-button" class="watch-ad-button" text="Смотреть рекламу" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
+
+
+

@@ -7,7 +7,7 @@ using System.Collections;
 public class PetBehavior : MonoBehaviour
 {
     [Header("Настройки движения")]
-    [SerializeField] private float moveSpeed = 3f;
+    [SerializeField] private float moveSpeed = 12f; // Увеличено в 4 раза: было 3f, стало 12f
     [SerializeField] private float searchInterval = 1f; // Интервал поиска кристаллов в секундах
     [SerializeField] private float miningDistance = 1f; // Расстояние для начала добычи (уменьшено в два раза)
     
@@ -21,7 +21,7 @@ public class PetBehavior : MonoBehaviour
     private Crystal targetCrystal;
     private float lastSearchTime;
     private bool isMining = false;
-    private float baseMiningRate = 5f; // 5 HP в секунду
+    private float baseMiningRate = 5f; // 5 HP в секунду (уменьшено в 4 раза: было 20, стало 5)
     
     // Для добавления монет каждую секунду
     private float lastCoinTime = 0f;
@@ -47,6 +47,7 @@ public class PetBehavior : MonoBehaviour
     private float boostEndTime = 0f; // Время окончания эффекта ускорения
     private GameObject speedBoostEffect; // VFX эффект ускорения
     private Vector3 originalScale; // Исходный размер питомца
+    private float originalFixedYPosition; // Исходная фиксированная позиция Y (для восстановления после ускорения)
     
     /// <summary>
     /// Инициализировать поведение питомца
@@ -71,6 +72,12 @@ public class PetBehavior : MonoBehaviour
         Vector3 pos = transform.position;
         pos.y = fixedYPosition;
         transform.position = pos;
+        
+        // Сохранить исходную позицию Y, если она еще не установлена через SetFixedYPosition
+        if (originalFixedYPosition == 0f && fixedYPosition != 0f)
+        {
+            originalFixedYPosition = fixedYPosition;
+        }
         
         // Найти визуальную модель (дочерний объект с рендерером)
         FindVisualModel();
@@ -145,6 +152,7 @@ public class PetBehavior : MonoBehaviour
     public void SetFixedYPosition(float yPosition)
     {
         fixedYPosition = yPosition;
+        originalFixedYPosition = yPosition; // Сохранить исходную позицию
         Vector3 pos = transform.position;
         pos.y = fixedYPosition;
         transform.position = pos;
@@ -225,11 +233,20 @@ public class PetBehavior : MonoBehaviour
     private void LateUpdate()
     {
         // В LateUpdate фиксируем позицию, чтобы она устанавливалась после всех обновлений
+        // Это предотвращает смещение позиции Y при изменении размера модели (например, при ускорении)
         if (positionLocked && isMining)
         {
             Vector3 fixedPos = miningPosition;
             fixedPos.y = fixedYPosition;
             transform.position = fixedPos;
+        }
+        else
+        {
+            // Всегда фиксировать позицию Y, чтобы предотвратить смещение при изменении размера модели
+            // Особенно важно при ускорении питомца, когда размер увеличивается
+            Vector3 pos = transform.position;
+            pos.y = fixedYPosition;
+            transform.position = pos;
         }
     }
     
@@ -351,6 +368,10 @@ public class PetBehavior : MonoBehaviour
         
         // Создать эффект по центру кристалла
         miningEffect = Instantiate(effectPrefab, effectPosition, Quaternion.identity);
+        
+        // Увеличить базовый размер эффекта молнии в 2 раза
+        Vector3 baseScale = miningEffect.transform.localScale;
+        miningEffect.transform.localScale = baseScale * 2f;
         
         // Сделать эффект дочерним объектом кристалла, чтобы он следовал за ним
         if (targetCrystal != null)
@@ -583,14 +604,14 @@ public class PetBehavior : MonoBehaviour
         // Добавлять монеты каждую секунду добычи
         if (Time.time - lastCoinTime >= coinInterval)
         {
-            int coinsToAdd = 1; // Базовое количество монет
+            int coinsToAdd = 4; // Базовое количество монет (увеличено в 4 раза: было 1, стало 4)
             switch (petData.rarity)
             {
                 case PetRarity.Epic:
-                    coinsToAdd = 2;
+                    coinsToAdd = 8; // Увеличено в 4 раза: было 2, стало 8
                     break;
                 case PetRarity.Legendary:
-                    coinsToAdd = 3;
+                    coinsToAdd = 12; // Увеличено в 4 раза: было 3, стало 12
                     break;
             }
             
@@ -686,6 +707,25 @@ public class PetBehavior : MonoBehaviour
         isBoosted = true;
         boostEndTime = Time.time + 5f; // Эффект длится 5 секунд
         
+        // Сохранить исходную позицию Y, если еще не сохранена
+        if (originalFixedYPosition == 0f && fixedYPosition != 0f)
+        {
+            originalFixedYPosition = fixedYPosition;
+        }
+        
+        // Определить, является ли питомец верхним или нижним, и изменить позицию Y
+        bool isUpperPet = IsUpperPet();
+        if (isUpperPet)
+        {
+            // Верхние питомцы: Y должен быть ниже (увеличить отрицательное значение)
+            fixedYPosition = originalFixedYPosition - 2f; // Опустить на 0.5 единицы
+        }
+        else
+        {
+            // Нижние питомцы: Y должен увеличиваться немного (уменьшить отрицательное значение)
+            fixedYPosition = originalFixedYPosition + 0.5f; // Поднять на 0.2 единицы
+        }
+        
         // Сохранить флаг использования ускорения
         PlayerPrefs.SetInt("HasUsedSpeedBoost", 1);
         PlayerPrefs.Save();
@@ -693,10 +733,37 @@ public class PetBehavior : MonoBehaviour
         // Создать VFX эффект
         CreateSpeedBoostEffect();
         
+        // Если питомец добывает кристалл, увеличить размер эффекта молнии еще в 2 раза (к базовому размеру)
+        // Базовый размер уже увеличен в 2 раза в CreateMiningEffect(), поэтому при ускорении эффект будет в 4 раза больше исходного
+        if (isMining && miningEffect != null)
+        {
+            Vector3 currentScale = miningEffect.transform.localScale;
+            miningEffect.transform.localScale = currentScale * 2f;
+        }
+        
         // Запустить анимацию увеличения
         StartCoroutine(ScaleUpAnimation());
         
-        Debug.Log($"[PetBehavior] Питомец {petData?.petName} ускорен! Эффект продлится 5 секунд.");
+        Debug.Log($"[PetBehavior] Питомец {petData?.petName} ускорен! Эффект продлится 5 секунд. Y позиция изменена: {originalFixedYPosition} -> {fixedYPosition}");
+    }
+    
+    /// <summary>
+    /// Определить, является ли питомец верхним (epic и остальные) или нижним (rare2, rare3, legendary)
+    /// </summary>
+    private bool IsUpperPet()
+    {
+        if (petData == null || string.IsNullOrEmpty(petData.petModelPath))
+        {
+            // По умолчанию считаем верхним, если нет данных
+            return true;
+        }
+        
+        string modelPath = petData.petModelPath.ToLower();
+        bool isRare2OrRare3 = modelPath.Contains("rare2") || modelPath.Contains("rare3");
+        bool isLegendary = modelPath.Contains("legendary");
+        
+        // Верхние питомцы - это те, которые НЕ rare2, rare3 или legendary
+        return !(isRare2OrRare3 || isLegendary);
     }
     
     /// <summary>
@@ -735,6 +802,9 @@ public class PetBehavior : MonoBehaviour
             // Создать эффект на позиции питомца
             speedBoostEffect = Instantiate(effectPrefab, transform.position, Quaternion.identity);
             
+            // Увеличить размер эффекта в 2 раза
+            speedBoostEffect.transform.localScale = Vector3.one * 2f;
+            
             // Сделать эффект дочерним объектом питомца
             speedBoostEffect.transform.SetParent(transform);
         }
@@ -745,7 +815,7 @@ public class PetBehavior : MonoBehaviour
     }
     
     /// <summary>
-    /// Анимация увеличения питомца на 30% за 1 секунду
+    /// Анимация увеличения питомца на 60% за 1 секунду (увеличено в 2 раза)
     /// </summary>
     private IEnumerator ScaleUpAnimation()
     {
@@ -758,7 +828,7 @@ public class PetBehavior : MonoBehaviour
         }
         
         Vector3 startScale = targetTransform.localScale;
-        Vector3 targetScale = startScale * 1.3f; // Увеличить на 30%
+        Vector3 targetScale = startScale * 1.6f; // Увеличить на 60% (в 2 раза больше, чем было 30%)
         
         float duration = 1f; // 1 секунда
         float elapsed = 0f;
@@ -771,11 +841,21 @@ public class PetBehavior : MonoBehaviour
             // Плавная интерполяция
             targetTransform.localScale = Vector3.Lerp(startScale, targetScale, t);
             
+            // Фиксировать позицию Y корневого объекта, чтобы компенсировать смещение при изменении размера
+            Vector3 rootPos = transform.position;
+            rootPos.y = fixedYPosition;
+            transform.position = rootPos;
+            
             yield return null;
         }
         
         // Убедиться, что достигли целевого размера
         targetTransform.localScale = targetScale;
+        
+        // Финальная фиксация позиции Y
+        Vector3 finalPos = transform.position;
+        finalPos.y = fixedYPosition;
+        transform.position = finalPos;
     }
     
     /// <summary>
@@ -786,6 +866,9 @@ public class PetBehavior : MonoBehaviour
         if (!isBoosted) return;
         
         isBoosted = false;
+        
+        // Вернуть исходную позицию Y
+        fixedYPosition = originalFixedYPosition;
         
         // Уничтожить VFX эффект
         if (speedBoostEffect != null)
@@ -803,7 +886,7 @@ public class PetBehavior : MonoBehaviour
             PetSpeedBoostManager.Instance.OnBoostEffectEnded();
         }
         
-        Debug.Log($"[PetBehavior] Эффект ускорения питомца {petData?.petName} закончился.");
+        Debug.Log($"[PetBehavior] Эффект ускорения питомца {petData?.petName} закончился. Y позиция восстановлена: {fixedYPosition}");
     }
     
     /// <summary>
@@ -825,11 +908,21 @@ public class PetBehavior : MonoBehaviour
             // Плавная интерполяция обратно к исходному размеру
             targetTransform.localScale = Vector3.Lerp(currentScale, originalScale, t);
             
+            // Фиксировать позицию Y корневого объекта, чтобы компенсировать смещение при изменении размера
+            Vector3 rootPos = transform.position;
+            rootPos.y = fixedYPosition;
+            transform.position = rootPos;
+            
             yield return null;
         }
         
         // Убедиться, что вернулись к исходному размеру
         targetTransform.localScale = originalScale;
+        
+        // Финальная фиксация позиции Y
+        Vector3 finalPos = transform.position;
+        finalPos.y = fixedYPosition;
+        transform.position = finalPos;
     }
 }
 

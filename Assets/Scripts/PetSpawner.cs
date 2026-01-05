@@ -391,22 +391,22 @@ public class PetSpawner : MonoBehaviour
             isLegendary = modelPath.Contains("legendary");
         }
         
-        // rare2, rare3 и legendary на 0.5 единицы ниже базовой высоты
+        // Нижние питомцы корректны, верхние нужно опустить
         if (isRare2OrRare3 || isLegendary)
         {
-            yOffset = -0.5f; // На 0.5 единицы ниже базовой высоты (на 4 единицы выше остальных)
+            yOffset = -0.3f; // Нижние питомцы (корректная высота)
         }
         else
         {
-            // epic и остальные (rare1, rare4) на 4.5 координаты ниже
+            // Epic и остальные (rare1, rare4) - верхние питомцы
             switch (petData.rarity)
             {
                 case PetRarity.Common:    // rare1, rare4
                 case PetRarity.Epic:      // epic
-                    yOffset = -4.5f;
+                    yOffset = -4f; // Верхние питомцы (опущены до уровня нижних, чтобы не парили)
                     break;
                 case PetRarity.Legendary: // rare4 (если не legendary модель)
-                    yOffset = -4.5f;
+                    yOffset = -0.3f;
                     break;
             }
         }

@@ -3,7 +3,7 @@ using UnityEngine.UIElements;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-#if EnvirData_yg
+#if EnvirData_yg || RewardedAd_yg || Localization_yg || Storage_yg
 using YG;
 #endif
 
@@ -17,6 +17,7 @@ public class InventoryUI : MonoBehaviour
     [SerializeField] private VisualTreeAsset mainUIAsset;
     [SerializeField] private VisualTreeAsset inventoryModalAsset;
     [SerializeField] private VisualTreeAsset shopModalAsset;
+    [SerializeField] private VisualTreeAsset adRewardModalAsset;
     [SerializeField] private StyleSheet robloxStyleSheet;
     
     [Header("Настройки")]
@@ -26,6 +27,7 @@ public class InventoryUI : MonoBehaviour
     private VisualElement root;
     private VisualElement modalOverlay;
     private VisualElement shopModalOverlay;
+    private VisualElement adRewardModalOverlay;
     private VisualElement petsGrid;
     private VisualElement activePetsGrid;
     private Button prevPageButton;
@@ -40,6 +42,8 @@ public class InventoryUI : MonoBehaviour
     private Button backpackButton; // Ссылка на кнопку рюкзака
     private Coroutine backpackPulseCoroutine; // Корутина анимации пульсации кнопки рюкзака
     
+    private int pendingEggPrice = 0; // Цена яйца, которое игрок пытался купить (для награды за рекламу)
+    
     /// <summary>
     /// Проверить, открыто ли хотя бы одно модальное окно
     /// </summary>
@@ -48,7 +52,7 @@ public class InventoryUI : MonoBehaviour
         InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
         if (inventoryUI != null)
         {
-            return inventoryUI.modalOverlay != null || inventoryUI.shopModalOverlay != null;
+            return inventoryUI.modalOverlay != null || inventoryUI.shopModalOverlay != null || inventoryUI.adRewardModalOverlay != null;
         }
         return false;
     }
@@ -98,40 +102,7 @@ public class InventoryUI : MonoBehaviour
             root.styleSheets.Add(robloxStyleSheet);
         }
         
-        // Найти кнопку магазина
-        Button shopButton = root.Q<Button>("shop-button");
-        if (shopButton != null)
-        {
-            // Отключить фокус и обработку клавиатуры для кнопки
-            shopButton.focusable = false;
-            
-            shopButton.clicked += () =>
-            {
-                // Анимация нажатия
-                UIAnimations.AnimateBounce(shopButton, this);
-                OpenShopModal();
-            };
-            
-            // Отключить обработку Submit (Space) для кнопки
-            shopButton.RegisterCallback<KeyDownEvent>(evt =>
-            {
-                if (evt.keyCode == KeyCode.Space)
-                {
-                    evt.StopPropagation();
-                }
-            });
-            
-            // Установить иконку магазина
-            VisualElement shopIcon = shopButton.Q<VisualElement>("shop-icon");
-            if (shopIcon != null)
-            {
-                LoadShopIcon(shopIcon);
-            }
-        }
-        else
-        {
-            Debug.LogWarning("Кнопка магазина не найдена!");
-        }
+        // Кнопка магазина удалена - теперь магазин открывается через redButton
         
         // Найти кнопку рюкзака
         backpackButton = root.Q<Button>("backpack-button");
@@ -185,7 +156,7 @@ public class InventoryUI : MonoBehaviour
     /// </summary>
     private IEnumerator InitializeBackpackAnimationDelayed()
     {
-        yield return new WaitForSeconds(0.5f); // Подождать, пока все компоненты инициализируются
+        yield return new WaitForSeconds(0.2f); // Подождать, пока все компоненты инициализируются (уменьшено для быстрой загрузки)
         
         // Проверить количество активных питомцев и обновить анимацию
         int totalPets = PetInventory.Instance != null ? PetInventory.Instance.GetTotalPetCount() : 0;
@@ -203,8 +174,13 @@ public class InventoryUI : MonoBehaviour
         // Проверить, было ли куплено яйцо
         bool eggPurchased = PlayerPrefs.GetInt("EggPurchased", 0) == 1;
         
+        // Проверить количество монет
+        int currentCoins = CoinManager.GetCoins();
+        bool hasEnoughCoins = currentCoins > 2000;
+        
         // Проверить, показывается ли подсказка "купите яйцо"
-        bool showBuyEggHint = totalPets == 0 && !isHatching && !eggPurchased;
+        // Не показывать, если у игрока больше 2000 монет
+        bool showBuyEggHint = totalPets == 0 && !isHatching && !eggPurchased && !hasEnoughCoins;
         
         UpdateBackpackButtonAnimation(activePetsCount, showBuyEggHint);
     }
@@ -479,11 +455,71 @@ public class InventoryUI : MonoBehaviour
         
         // Найти элементы UI внутри overlay
         VisualElement modalContainer = overlay.Q<VisualElement>("modal-container");
+        
+        // Найти petsGrid и activePetsGrid - сначала через overlay, потом через modalContainer
         petsGrid = overlay.Q<VisualElement>("pets-grid");
         activePetsGrid = overlay.Q<VisualElement>("active-pets-grid");
+        
+        // Если не нашли через overlay, попробуем через modalContainer
+        if (petsGrid == null && modalContainer != null)
+        {
+            petsGrid = modalContainer.Q<VisualElement>("pets-grid");
+        }
+        if (activePetsGrid == null && modalContainer != null)
+        {
+            activePetsGrid = modalContainer.Q<VisualElement>("active-pets-grid");
+        }
+        
+        // Если все еще не нашли, попробуем через Query
+        if (petsGrid == null && modalContainer != null)
+        {
+            var grids = modalContainer.Query<VisualElement>(name: "pets-grid").ToList();
+            if (grids.Count > 0)
+            {
+                petsGrid = grids[0];
+            }
+        }
+        if (activePetsGrid == null && modalContainer != null)
+        {
+            var grids = modalContainer.Query<VisualElement>(name: "active-pets-grid").ToList();
+            if (grids.Count > 0)
+            {
+                activePetsGrid = grids[0];
+            }
+        }
+        
+        // Логирование для отладки
+        bool isTabletForLogging = PlatformDetector.IsTablet();
+        if (isTabletForLogging)
+        {
+            Debug.Log($"[InventoryUI] Tablet detected - petsGrid: {petsGrid != null}, activePetsGrid: {activePetsGrid != null}, modalContainer: {modalContainer != null}");
+            if (petsGrid != null)
+            {
+                Debug.Log($"[InventoryUI] petsGrid found - display: {petsGrid.resolvedStyle.display}, visibility: {petsGrid.resolvedStyle.visibility}, opacity: {petsGrid.resolvedStyle.opacity}");
+            }
+            if (activePetsGrid != null)
+            {
+                Debug.Log($"[InventoryUI] activePetsGrid found - display: {activePetsGrid.resolvedStyle.display}, visibility: {activePetsGrid.resolvedStyle.visibility}, opacity: {activePetsGrid.resolvedStyle.opacity}");
+            }
+        }
+        
         prevPageButton = overlay.Q<Button>("prev-page-button");
         nextPageButton = overlay.Q<Button>("next-page-button");
         pageInfoLabel = overlay.Q<Label>("page-info");
+        
+        // Если не нашли кнопки пагинации через overlay, попробуем через modalContainer
+        if (prevPageButton == null && modalContainer != null)
+        {
+            prevPageButton = modalContainer.Q<Button>("prev-page-button");
+        }
+        if (nextPageButton == null && modalContainer != null)
+        {
+            nextPageButton = modalContainer.Q<Button>("next-page-button");
+        }
+        if (pageInfoLabel == null && modalContainer != null)
+        {
+            pageInfoLabel = modalContainer.Q<Label>("page-info");
+        }
         
         // Убедиться, что контейнер правильно центрируется
         if (modalContainer != null)
@@ -499,25 +535,21 @@ public class InventoryUI : MonoBehaviour
                 modalContainer.style.maxHeight = rootScreenHeight * 0.9f;
             }
             
-            // Уменьшить ширину модального окна на мобильных устройствах
-            if (PlatformDetector.IsMobile())
+            // Уменьшить ширину модального окна только на телефонах (не на планшетах)
+            bool isMobile = PlatformDetector.IsMobile();
+            bool isTabletDevice = PlatformDetector.IsTablet();
+            
+            if (isMobile && !isTabletDevice)
             {
                 // Определить, телефон ли это (упрощенная логика)
                 bool isPhone = IsPhoneDevice();
                 
-                // Для телефонов уменьшаем еще больше
+                // Для телефонов уменьшаем ширину
                 if (isPhone)
                 {
                     modalContainer.style.maxWidth = Length.Percent(85); // Уже для телефонов
-                }
-                else
-                {
-                    modalContainer.style.maxWidth = Length.Percent(81); // Обычное уменьшение для планшетов
-                }
-                
-                // Увеличить max-height для телефонов, чтобы больше контента уместилось
-                if (isPhone)
-                {
+                    
+                    // Увеличить max-height для телефонов, чтобы больше контента уместилось
                     float screenHeightValueForModal = root.resolvedStyle.height;
                     if (screenHeightValueForModal > 0)
                     {
@@ -525,6 +557,7 @@ public class InventoryUI : MonoBehaviour
                     }
                 }
             }
+            // Для планшетов и десктопа оставляем стандартную ширину (90% из CSS)
             
             // Применить мобильные стили
             ApplyMobileStylesToInventoryModal(modalContainer);
@@ -693,8 +726,45 @@ public class InventoryUI : MonoBehaviour
     /// </summary>
     private void UpdateModalUI()
     {
+        // На планшетах попробовать найти элементы еще раз, если они не найдены
+        bool isTablet = PlatformDetector.IsTablet();
+        if ((petsGrid == null || activePetsGrid == null) && isTablet && modalOverlay != null)
+        {
+            Debug.LogWarning("[InventoryUI] Tablet - petsGrid or activePetsGrid is null, trying to find again...");
+            VisualElement modalContainer = modalOverlay.Q<VisualElement>("modal-container");
+            if (modalContainer != null)
+            {
+                if (petsGrid == null)
+                {
+                    petsGrid = modalContainer.Q<VisualElement>("pets-grid");
+                    if (petsGrid == null)
+                    {
+                        var grids = modalContainer.Query<VisualElement>(name: "pets-grid").ToList();
+                        if (grids.Count > 0) petsGrid = grids[0];
+                    }
+                }
+                if (activePetsGrid == null)
+                {
+                    activePetsGrid = modalContainer.Q<VisualElement>("active-pets-grid");
+                    if (activePetsGrid == null)
+                    {
+                        var grids = modalContainer.Query<VisualElement>(name: "active-pets-grid").ToList();
+                        if (grids.Count > 0) activePetsGrid = grids[0];
+                    }
+                }
+                
+                if (petsGrid != null && activePetsGrid != null)
+                {
+                    Debug.Log("[InventoryUI] Tablet - Successfully found petsGrid and activePetsGrid on retry");
+                }
+            }
+        }
+        
         if (petsGrid == null || activePetsGrid == null)
+        {
+            Debug.LogError($"[InventoryUI] UpdateModalUI - petsGrid: {petsGrid != null}, activePetsGrid: {activePetsGrid != null}, isTablet: {isTablet}");
             return;
+        }
         
         // Очистить сетки
         petsGrid.Clear();
@@ -771,22 +841,27 @@ public class InventoryUI : MonoBehaviour
                 bool isTablet = PlatformDetector.IsTablet();
                 bool isDesktop = !isMobile && !isTablet;
                 
-                if (isMobile)
+                // Для планшетов применяем десктопные стили (как для десктопа)
+                if (isMobile && !isTablet)
                 {
                     ApplyMobileStylesToInventoryModal(modalContainer);
                 }
-                else if (isDesktop)
+                else if (isDesktop || isTablet)
                 {
-                    // Для десктопа применить стили к заголовкам
+                    // Для десктопа и планшетов применить десктопные стили к заголовкам
                     ApplyDesktopSectionTitleStyles(modalContainer);
                 }
                 
-                // Определить isPhone (только для мобильных)
-                // Для планшетов isPhone = false, но планшеты обрабатываются отдельно в ApplyMobileStylesToPetSlot
-                bool isPhone = isMobile ? IsPhoneDevice() : false;
+                // Определить isPhone (только для телефонов, не для планшетов)
+                // Для планшетов и десктопа isPhone = false, мобильные стили не применяются
+                bool isPhone = (isMobile && !isTablet) ? IsPhoneDevice() : false;
                 
-                Debug.Log($"[InventoryUI] ApplyMobileStylesDelayed - isMobile: {isMobile}, isTablet: {isTablet}, isPhone: {isPhone}");
-            Debug.Log($"[InventoryUI] ApplyMobileStylesDelayed - Applying mobile styles, isMobile: {PlatformDetector.IsMobile()}, isPhone: {isPhone}");
+                Debug.Log($"[InventoryUI] ApplyMobileStylesDelayed - isMobile: {isMobile}, isTablet: {isTablet}, isPhone: {isPhone}, isDesktop: {isDesktop}");
+                
+                // Для планшетов и десктопа также применяем стили к ячейкам (но не мобильные стили)
+                // Стили будут применены через ApplyMobileStylesToPetSlot, которая определяет тип устройства
+                
+            Debug.Log($"[InventoryUI] ApplyMobileStylesDelayed - Applying styles, isMobile: {PlatformDetector.IsMobile()}, isPhone: {isPhone}, isTablet: {isTablet}, isDesktop: {isDesktop}");
             
             // Применить стили ко всем уже созданным ячейкам инвентаря (ВКЛЮЧАЯ empty!)
             var allSlots = petsGrid.Query<VisualElement>(className: "pet-slot").ToList();
@@ -802,8 +877,8 @@ public class InventoryUI : MonoBehaviour
                     float oldHeight = slot.resolvedStyle.height;
                     Debug.Log($"[InventoryUI] Processing inventory slot: empty={isEmpty}, active={isActive}, size={oldWidth}x{oldHeight}");
                     // Применяем стили ко всем ячейкам, включая empty
-                    // Для десктопа isPhone будет false
-                    bool isPhoneForSlot = PlatformDetector.IsMobile() ? isPhone : false;
+                    // Для десктопа и планшетов isPhone будет false
+                    bool isPhoneForSlot = (isMobile && !isTablet) ? isPhone : false;
                     ApplyMobileStylesToPetSlot(slot, isActive, isPhoneForSlot);
                     // Проверить, применились ли стили
                     yield return null; // Подождать кадр
@@ -828,8 +903,8 @@ public class InventoryUI : MonoBehaviour
                     float oldHeight = slot.resolvedStyle.height;
                     Debug.Log($"[InventoryUI] Processing active slot: empty={isEmpty}, size={oldWidth}x{oldHeight}");
                     // Применяем стили ко всем ячейкам, включая empty
-                    // Для десктопа isPhone будет false
-                    bool isPhoneForSlot = PlatformDetector.IsMobile() ? isPhone : false;
+                    // Для десктопа и планшетов isPhone будет false
+                    bool isPhoneForSlot = (isMobile && !isTablet) ? isPhone : false;
                     ApplyMobileStylesToPetSlot(slot, true, isPhoneForSlot);
                     // Проверить, применились ли стили
                     yield return null; // Подождать кадр
@@ -850,12 +925,14 @@ public class InventoryUI : MonoBehaviour
             yield return null;
             yield return null;
             
+            // Повторно применить стили ко всем ячейкам (для всех устройств)
             foreach (var slot in allSlots)
             {
                 if (slot != null)
                 {
                     bool isActive = slot.ClassListContains("active");
-                    ApplyMobileStylesToPetSlot(slot, isActive, isPhone);
+                    bool isPhoneForSlot = (isMobile && !isTablet) ? isPhone : false;
+                    ApplyMobileStylesToPetSlot(slot, isActive, isPhoneForSlot);
                     slot.MarkDirtyRepaint();
                 }
             }
@@ -863,7 +940,8 @@ public class InventoryUI : MonoBehaviour
             {
                 if (slot != null)
                 {
-                    ApplyMobileStylesToPetSlot(slot, true, isPhone);
+                    bool isPhoneForSlot = (isMobile && !isTablet) ? isPhone : false;
+                    ApplyMobileStylesToPetSlot(slot, true, isPhoneForSlot);
                     slot.MarkDirtyRepaint();
                 }
             }
@@ -1602,14 +1680,19 @@ public class InventoryUI : MonoBehaviour
         // Проверить, было ли куплено яйцо (даже если оно еще не вылупилось)
         bool eggPurchased = PlayerPrefs.GetInt("EggPurchased", 0) == 1;
         
+        // Проверить количество монет
+        int currentCoins = CoinManager.GetCoins();
+        bool hasEnoughCoins = currentCoins > 2000;
+        
         // Проверить, показывается ли подсказка "купите яйцо"
-        bool showBuyEggHint = totalPets == 0 && !isHatching && !eggPurchased;
+        // Не показывать, если у игрока больше 2000 монет
+        bool showBuyEggHint = totalPets == 0 && !isHatching && !eggPurchased && !hasEnoughCoins;
         
         // Обновить анимацию кнопки рюкзака (не пульсировать, если показывается подсказка "купите яйцо")
         UpdateBackpackButtonAnimation(activePetsCount, showBuyEggHint);
         
-        // Условие 1: 0 питомцев (но только если не идет вылупление и яйцо не было куплено)
-        if (totalPets == 0 && !isHatching && !eggPurchased)
+        // Условие 1: 0 питомцев (но только если не идет вылупление, яйцо не было куплено и монет меньше 2000)
+        if (totalPets == 0 && !isHatching && !eggPurchased && !hasEnoughCoins)
         {
             hintPanel.style.display = DisplayStyle.Flex;
             hintText.text = LocalizationManager.GetHintBuyEgg();
@@ -1802,12 +1885,12 @@ public class InventoryUI : MonoBehaviour
         float baseFontSize = 14f; // Уменьшено с 18f
         float baseIconSize = 28f; // Уменьшено с 40f
         
-        // Получить высоту кнопок для синхронизации
-        Button shopButton = root.Q<Button>("shop-button");
+        // Получить высоту кнопок для синхронизации (используем кнопку рюкзака)
+        Button backpackButton = root.Q<Button>("backpack-button");
         float buttonHeight = baseHeight;
-        if (shopButton != null)
+        if (backpackButton != null)
         {
-            float heightValue = shopButton.resolvedStyle.height;
+            float heightValue = backpackButton.resolvedStyle.height;
             if (heightValue > 0)
             {
                 buttonHeight = heightValue;
@@ -1906,7 +1989,7 @@ public class InventoryUI : MonoBehaviour
     /// <summary>
     /// Открыть модальное окно магазина
     /// </summary>
-    private void OpenShopModal()
+    public void OpenShopModal()
     {
         if (shopModalAsset == null)
         {
@@ -1989,6 +2072,14 @@ public class InventoryUI : MonoBehaviour
         if (eggEmoji != null)
         {
             LoadEggIcon(eggEmoji);
+            // Уменьшить размер иконки яйца в модальном окне
+            float eggIconSize = 50f; // Уменьшено с 90px до 50px
+            eggEmoji.style.width = new StyleLength(eggIconSize);
+            eggEmoji.style.height = new StyleLength(eggIconSize);
+            eggEmoji.style.minWidth = new StyleLength(eggIconSize);
+            eggEmoji.style.minHeight = new StyleLength(eggIconSize);
+            eggEmoji.style.maxWidth = new StyleLength(eggIconSize);
+            eggEmoji.style.maxHeight = new StyleLength(eggIconSize);
         }
         
         VisualElement mapEmoji = upgradeMapButton?.Q<VisualElement>("map-emoji");
@@ -2024,6 +2115,120 @@ public class InventoryUI : MonoBehaviour
             
             // Анимация появления
             UIAnimations.AnimateModalAppear(modalContainer, this);
+        }
+        
+        // Обработчик кнопки закрытия (только для десктопа)
+        bool isMobile = PlatformDetector.IsMobile();
+        bool isTablet = PlatformDetector.IsTablet();
+        
+        VisualElement closeShopButton = overlay.Q<VisualElement>("close-shop-button");
+        if (closeShopButton != null && !isMobile && !isTablet)
+        {
+            // Настроить адаптивный размер кнопки закрытия
+            SetupCloseButtonSize(closeShopButton);
+            
+            // Создать прозрачный overlay поверх кнопки для обработки кликов
+            VisualElement clickOverlay = new VisualElement();
+            clickOverlay.name = "close-button-click-overlay";
+            clickOverlay.pickingMode = PickingMode.Position;
+            clickOverlay.focusable = true;
+            
+            // Добавить overlay в modal-container (родитель кнопки) ПЕРЕД настройкой размеров
+            VisualElement container = overlay.Q<VisualElement>("modal-container");
+            if (container != null)
+            {
+                container.Add(clickOverlay);
+                
+                // Установить размеры overlay после того, как SetupCloseButtonSize настроит кнопку
+                closeShopButton.schedule.Execute(() =>
+                {
+                    clickOverlay.style.position = Position.Absolute;
+                    clickOverlay.style.top = new StyleLength(closeShopButton.resolvedStyle.top);
+                    clickOverlay.style.right = new StyleLength(closeShopButton.resolvedStyle.right);
+                    clickOverlay.style.width = new StyleLength(closeShopButton.resolvedStyle.width);
+                    clickOverlay.style.height = new StyleLength(closeShopButton.resolvedStyle.height);
+                    clickOverlay.style.minWidth = new StyleLength(closeShopButton.resolvedStyle.minWidth.value);
+                    clickOverlay.style.minHeight = new StyleLength(closeShopButton.resolvedStyle.minHeight.value);
+                    clickOverlay.style.maxWidth = new StyleLength(closeShopButton.resolvedStyle.maxWidth.value);
+                    clickOverlay.style.maxHeight = new StyleLength(closeShopButton.resolvedStyle.maxHeight.value);
+                    
+                    // Прозрачный фон, но кликабельный
+                    clickOverlay.style.backgroundColor = new StyleColor(new Color(0, 0, 0, 0));
+                    // z-index устанавливается через USS или не нужен, так как overlay добавлен после кнопки
+                    clickOverlay.style.cursor = new StyleCursor(StyleKeyword.Auto);
+                    
+                    // Установить border-radius для круглой области клика
+                    float borderRadius = closeShopButton.resolvedStyle.borderTopLeftRadius;
+                    clickOverlay.style.borderTopLeftRadius = new StyleLength(borderRadius);
+                    clickOverlay.style.borderTopRightRadius = new StyleLength(borderRadius);
+                    clickOverlay.style.borderBottomLeftRadius = new StyleLength(borderRadius);
+                    clickOverlay.style.borderBottomRightRadius = new StyleLength(borderRadius);
+                });
+            }
+            
+            // Обработчик клика на overlay
+            clickOverlay.RegisterCallback<ClickEvent>(evt =>
+            {
+                evt.StopPropagation();
+                UIAnimations.AnimateBounce(closeShopButton, this);
+                CloseShopModal();
+            });
+            
+            // Обработчик для hover эффекта (на overlay, но применяем к кнопке)
+            clickOverlay.RegisterCallback<MouseEnterEvent>(evt =>
+            {
+                closeShopButton.AddToClassList("shop-close-button-hover");
+            });
+            
+            clickOverlay.RegisterCallback<MouseLeaveEvent>(evt =>
+            {
+                closeShopButton.RemoveFromClassList("shop-close-button-hover");
+            });
+            
+            // Обработчик для active эффекта
+            clickOverlay.RegisterCallback<MouseDownEvent>(evt =>
+            {
+                closeShopButton.AddToClassList("shop-close-button-active");
+            });
+            
+            clickOverlay.RegisterCallback<MouseUpEvent>(evt =>
+            {
+                closeShopButton.RemoveFromClassList("shop-close-button-active");
+            });
+            
+            // Также обработать PointerEvents
+            clickOverlay.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                closeShopButton.AddToClassList("shop-close-button-active");
+                evt.StopPropagation();
+            });
+            
+            clickOverlay.RegisterCallback<PointerUpEvent>(evt =>
+            {
+                closeShopButton.RemoveFromClassList("shop-close-button-active");
+                UIAnimations.AnimateBounce(closeShopButton, this);
+                CloseShopModal();
+                evt.StopPropagation();
+            });
+            
+            // Настроить Label внутри кнопки, чтобы он не перехватывал клики
+            Label closeLabel = closeShopButton.Q<Label>();
+            if (closeLabel != null)
+            {
+                closeLabel.pickingMode = PickingMode.Ignore;
+                closeLabel.focusable = false;
+            }
+            
+            // Сохранить ссылку на overlay для очистки при закрытии
+            closeShopButton.userData = clickOverlay;
+        }
+        else if (closeShopButton != null && (isMobile || isTablet))
+        {
+            // На мобильных устройствах и планшетах скрыть кнопку сразу
+            closeShopButton.style.display = DisplayStyle.None;
+            closeShopButton.style.visibility = Visibility.Hidden;
+            closeShopButton.style.opacity = 0f;
+            closeShopButton.SetEnabled(false);
         }
         
         // Обработчики кнопок
@@ -2093,6 +2298,124 @@ public class InventoryUI : MonoBehaviour
     }
     
     /// <summary>
+    /// Настроить адаптивный размер кнопки закрытия магазина
+    /// </summary>
+    private void SetupCloseButtonSize(VisualElement closeButton)
+    {
+        if (closeButton == null) return;
+        
+        bool isMobile = PlatformDetector.IsMobile();
+        bool isTablet = PlatformDetector.IsTablet();
+        bool isDesktop = PlatformDetector.IsDesktop();
+        
+        float buttonSize;
+        float fontSize;
+        float topOffset;
+        float rightOffset;
+        
+        if (isMobile)
+        {
+            bool isPhone = IsPhoneDevice();
+            if (isPhone)
+            {
+                // Mobile (Phone) - самый маленький размер
+                buttonSize = 40f;
+                fontSize = 22f;
+                topOffset = 10f;
+                rightOffset = 10f;
+            }
+            else
+            {
+                // Tablet - средний размер
+                buttonSize = 45f;
+                fontSize = 24f;
+                topOffset = 12f;
+                rightOffset = 12f;
+            }
+        }
+        else if (isTablet)
+        {
+            // Tablet - средний размер
+            buttonSize = 48f;
+            fontSize = 26f;
+            topOffset = 15f;
+            rightOffset = 15f;
+        }
+        else
+        {
+            // Desktop - самый большой размер
+            buttonSize = 50f;
+            fontSize = 28f;
+            topOffset = 15f;
+            rightOffset = 15f;
+        }
+        
+        // Установить размеры кнопки (ширина и высота должны быть одинаковыми для круглой кнопки)
+        closeButton.style.width = new StyleLength(buttonSize);
+        closeButton.style.height = new StyleLength(buttonSize);
+        closeButton.style.minWidth = new StyleLength(buttonSize);
+        closeButton.style.minHeight = new StyleLength(buttonSize);
+        closeButton.style.maxWidth = new StyleLength(buttonSize);
+        closeButton.style.maxHeight = new StyleLength(buttonSize);
+        closeButton.style.top = new StyleLength(topOffset);
+        closeButton.style.right = new StyleLength(rightOffset);
+        closeButton.style.fontSize = new StyleLength(fontSize);
+        
+        // Установить border-radius для круглой кнопки (через отдельные свойства для каждого угла)
+        float borderRadius = buttonSize / 2f;
+        closeButton.style.borderTopLeftRadius = new StyleLength(borderRadius);
+        closeButton.style.borderTopRightRadius = new StyleLength(borderRadius);
+        closeButton.style.borderBottomLeftRadius = new StyleLength(borderRadius);
+        closeButton.style.borderBottomRightRadius = new StyleLength(borderRadius);
+        
+        // Убедиться, что кнопка не растягивается и не сжимается
+        closeButton.style.flexShrink = 0;
+        closeButton.style.flexGrow = 0;
+        
+        // Убрать внутренние отступы для правильного хитбокса
+        closeButton.style.paddingTop = 0;
+        closeButton.style.paddingBottom = 0;
+        closeButton.style.paddingLeft = 0;
+        closeButton.style.paddingRight = 0;
+        closeButton.style.marginTop = 0;
+        closeButton.style.marginBottom = 0;
+        closeButton.style.marginLeft = 0;
+        closeButton.style.marginRight = 0;
+        
+        // Критически важно: установить display: flex для правильного выравнивания и хитбокса
+        closeButton.style.display = DisplayStyle.Flex;
+        
+        // Убедиться, что кнопка занимает всю область для клика
+        closeButton.style.position = Position.Absolute;
+        closeButton.style.display = DisplayStyle.Flex;
+        
+        // КРИТИЧЕСКИ ВАЖНО: Убедиться, что кнопка обрабатывает клики по всей области
+        closeButton.pickingMode = PickingMode.Position;
+        closeButton.focusable = true;
+        
+        // Настроить Label внутри (если есть)
+        Label label = closeButton.Q<Label>();
+        if (label != null)
+        {
+            label.pickingMode = PickingMode.Ignore;
+            label.focusable = false;
+        }
+        
+        // КРИТИЧЕСКИ ВАЖНО: Убедиться, что все размеры применены
+        closeButton.MarkDirtyRepaint();
+        
+        Debug.Log($"[InventoryUI] SetupCloseButtonSize - Size: {buttonSize}, FontSize: {fontSize}, isMobile: {isMobile}, isTablet: {isTablet}, isDesktop: {isDesktop}");
+    }
+    
+    /// <summary>
+    /// Проверить, открыто ли модальное окно магазина
+    /// </summary>
+    public bool IsShopModalOpen()
+    {
+        return shopModalOverlay != null;
+    }
+    
+    /// <summary>
     /// Закрыть модальное окно магазина
     /// </summary>
     private void CloseShopModal()
@@ -2101,6 +2424,20 @@ public class InventoryUI : MonoBehaviour
         {
             VisualElement overlay = shopModalOverlay;
             VisualElement modalContainer = overlay.Q<VisualElement>("modal-container");
+            
+            // Удалить overlay кнопки закрытия, если он существует
+            VisualElement closeButton = overlay.Q<VisualElement>("close-shop-button");
+            if (closeButton != null && closeButton.userData is VisualElement overlayElement)
+            {
+                overlayElement.RemoveFromHierarchy();
+            }
+            
+            // Также попробовать найти overlay по имени
+            VisualElement clickOverlay = overlay.Q<VisualElement>("close-button-click-overlay");
+            if (clickOverlay != null)
+            {
+                clickOverlay.RemoveFromHierarchy();
+            }
             
             // Убрать обработчики клавиатуры
             overlay.UnregisterCallback<KeyDownEvent>(OnKeyDown);
@@ -2164,17 +2501,51 @@ public class InventoryUI : MonoBehaviour
     /// </summary>
     private void BuyEgg()
     {
-        // Получить цену яйца (динамическая цена на основе количества питомцев)
+        // Получить цену яйца (увеличивается в 2 раза после каждой покупки)
         ShopManager shopManager = FindObjectOfType<ShopManager>();
+        if (shopManager == null)
+        {
+            Debug.LogError("[InventoryUI] ShopManager не найден! Цена не может быть увеличена.");
+        }
         int eggPrice = shopManager != null ? shopManager.GetEggPrice() : 100;
         int currentCoins = CoinManager.GetCoins();
         
         Debug.Log($"Попытка купить яйцо. Текущие монеты: {currentCoins}, цена: {eggPrice}");
         
-        if (currentCoins >= eggPrice)
+        // Если недостаточно монет, показать модальное окно с предложением посмотреть рекламу
+        if (currentCoins < eggPrice)
         {
+            // Сохранить цену яйца для награды за рекламу
+            pendingEggPrice = eggPrice;
+            OpenAdRewardModal();
+            return;
+        }
+        
+        // Если монет достаточно, выполнить покупку
             CoinManager.SpendCoins(eggPrice);
             Debug.Log($"Монеты потрачены. Осталось: {CoinManager.GetCoins()}");
+        
+        // Цена теперь рассчитывается динамически на основе количества питомцев
+        // Увеличение цены не требуется
+        if (shopManager != null)
+        {
+            int currentPrice = shopManager.GetEggPrice();
+            Debug.Log($"[InventoryUI] Цена яйца (рассчитывается динамически): {currentPrice}");
+            
+            // Дополнительная проверка через PlayerPrefs (для локального тестирования)
+            if (PlayerPrefs.HasKey("EggPrice"))
+            {
+                int playerPrefsPrice = PlayerPrefs.GetInt("EggPrice");
+                Debug.Log($"[InventoryUI] Проверка PlayerPrefs: EggPrice = {playerPrefsPrice}");
+            }
+            
+            // Обновить цену в UI (цена обновится автоматически после добавления питомца)
+            if (shopModalOverlay != null)
+            {
+                UpdateShopPrices(shopModalOverlay);
+                Debug.Log($"[InventoryUI] Цена обновлена в UI модального окна: {currentPrice}");
+            }
+        }
             
             // Спавнить яйцо через PetHatchingManager
             PetHatchingManager hatchingManager = FindObjectOfType<PetHatchingManager>();
@@ -2188,28 +2559,42 @@ public class InventoryUI : MonoBehaviour
                     Button buyEggButton = shopModalOverlay.Q<Button>("buy-egg-button");
                     UpdateBuyEggButtonState(buyEggButton);
                 }
-                
-                // Сохранить флаг покупки яйца (чтобы подсказка пропала сразу)
-                PlayerPrefs.SetInt("EggPurchased", 1);
-                PlayerPrefs.Save();
+            
+            // Сохранить флаг покупки яйца (чтобы подсказка пропала сразу)
+            PlayerPrefs.SetInt("EggPurchased", 1);
+            PlayerPrefs.Save();
                 
                 // Закрыть модальное окно после успешной покупки
                 CloseShopModal();
-                
-                // Обновить подсказки сразу (чтобы скрыть подсказку "Купите яйцо")
-                UpdateHintPanel();
-                
-                // Обновить подсказки еще раз с задержкой, чтобы модальное окно успело закрыться
-                StartCoroutine(UpdateHintPanelAfterPurchase());
+            
+            // Обновить подсказки сразу (чтобы скрыть подсказку "Купите яйцо")
+            UpdateHintPanel();
+            
+            // Обновить подсказки еще раз с задержкой, чтобы модальное окно успело закрыться
+            StartCoroutine(UpdateHintPanelAfterPurchase());
             }
             else
             {
                 Debug.LogError("PetHatchingManager не найден на сцене! Убедитесь, что объект с компонентом PetHatchingManager присутствует на сцене.");
-            }
         }
-        else
+    }
+    
+    /// <summary>
+    /// Обновить цену яйца после покупки с небольшой задержкой
+    /// </summary>
+    private IEnumerator UpdateEggPriceAfterPurchase(ShopManager shopManager, int oldPrice)
+    {
+        // Подождать один кадр, чтобы убедиться, что сохранение завершено
+        yield return null;
+        
+        int newPrice = shopManager.GetEggPrice();
+        Debug.Log($"[InventoryUI] Цена яйца после покупки: {oldPrice} -> {newPrice}");
+        
+        // Обновить цену в UI сразу после увеличения (до закрытия модального окна)
+        if (shopModalOverlay != null)
         {
-            Debug.Log($"Недостаточно монет! Нужно: {eggPrice}, есть: {currentCoins}");
+            UpdateShopPrices(shopModalOverlay);
+            Debug.Log($"[InventoryUI] Цена обновлена в UI модального окна: {newPrice}");
         }
     }
     
@@ -2335,7 +2720,9 @@ public class InventoryUI : MonoBehaviour
         Button upgradeMapButton = overlay.Q<Button>("upgrade-map-button");
         if (upgradeMapButton == null) return;
         
-        Label mapPriceLabel = overlay.Q<Label>("map-upgrade-price");
+        VisualElement mapPriceContainer = overlay.Q<VisualElement>("map-upgrade-price");
+        Label mapPriceText = mapPriceContainer?.Q<Label>("map-upgrade-price-text");
+        VisualElement mapPriceIcon = mapPriceContainer?.Q<VisualElement>("map-upgrade-price-icon");
         Label mapButtonLabel = upgradeMapButton.Q<Label>(className: "shop-item-label");
         
         // Если карта уже куплена, установить цену на 0 и изменить текст кнопки
@@ -2347,9 +2734,14 @@ public class InventoryUI : MonoBehaviour
             upgradeMapButton.RemoveFromClassList("disabled-button");
             
             // Установить цену на 0
-            if (mapPriceLabel != null)
+            if (mapPriceText != null)
             {
-                mapPriceLabel.text = "0 💎";
+                mapPriceText.text = "0";
+            }
+            
+            if (mapPriceIcon != null)
+            {
+                LoadCrystalIcon(mapPriceIcon);
             }
             
             // Изменить текст кнопки в зависимости от текущей карты
@@ -2366,9 +2758,14 @@ public class InventoryUI : MonoBehaviour
             // Карта не куплена, показать цену покупки
             int mapPriceValue = MapUpgradeSystem.GetMapPrice();
             
-            if (mapPriceLabel != null)
+            if (mapPriceText != null)
             {
-                mapPriceLabel.text = $"{mapPriceValue} 💎";
+                mapPriceText.text = mapPriceValue.ToString();
+            }
+            
+            if (mapPriceIcon != null)
+            {
+                LoadCrystalIcon(mapPriceIcon);
             }
             
             // Вернуть исходный текст кнопки
@@ -2408,16 +2805,8 @@ public class InventoryUI : MonoBehaviour
         PetHatchingManager hatchingManager = FindObjectOfType<PetHatchingManager>();
         bool isHatching = hatchingManager != null && hatchingManager.IsHatching();
         
-        // Получить цену яйца (динамическая цена на основе количества питомцев)
-        ShopManager shopManager = FindObjectOfType<ShopManager>();
-        int eggPrice = shopManager != null ? shopManager.GetEggPrice() : 100;
-        
-        // Проверить наличие монет
-        int currentCoins = CoinManager.GetCoins();
-        bool hasEnoughCoins = currentCoins >= eggPrice;
-        
-        // Блокировать кнопку, если идет вылупление или недостаточно монет
-        bool shouldBeEnabled = !isHatching && hasEnoughCoins;
+        // Блокировать кнопку только если идет вылупление (не блокируем при недостатке монет)
+        bool shouldBeEnabled = !isHatching;
         buyEggButton.SetEnabled(shouldBeEnabled);
         
         // Визуально показать, что кнопка заблокирована
@@ -2442,6 +2831,9 @@ public class InventoryUI : MonoBehaviour
         {
             Button buyEggButton = shopModalOverlay.Q<Button>("buy-egg-button");
             UpdateBuyEggButtonState(buyEggButton);
+            
+            // Также обновить цены в модальном окне (на случай, если цена изменилась)
+            UpdateShopPrices(shopModalOverlay);
         }
     }
     
@@ -2495,29 +2887,63 @@ public class InventoryUI : MonoBehaviour
     {
         if (overlay == null) return;
         
-        // Обновить цену яйца (динамическая цена на основе количества питомцев)
-        Label eggPriceLabel = overlay.Q<Label>("egg-price");
-        if (eggPriceLabel != null)
+        // Обновить цену яйца (увеличивается в 2 раза после каждой покупки)
+        VisualElement eggPriceContainer = overlay.Q<VisualElement>("egg-price");
+        if (eggPriceContainer != null)
         {
-            ShopManager shopManager = FindObjectOfType<ShopManager>();
-            int eggPrice = shopManager != null ? shopManager.GetEggPrice() : 100;
-            eggPriceLabel.text = $"{eggPrice} 💎";
+            Label eggPriceText = eggPriceContainer.Q<Label>("egg-price-text");
+            VisualElement eggPriceIcon = eggPriceContainer.Q<VisualElement>("egg-price-icon");
+            
+            if (eggPriceText != null)
+            {
+                ShopManager shopManager = FindObjectOfType<ShopManager>();
+                int eggPrice = shopManager != null ? shopManager.GetEggPrice() : 100;
+                eggPriceText.text = eggPrice.ToString();
+                Debug.Log($"[InventoryUI] Обновлена цена яйца в UI: {eggPrice}");
+            }
+            
+            if (eggPriceIcon != null)
+            {
+                LoadCrystalIcon(eggPriceIcon);
+            }
         }
         
         // Обновить цену улучшения кристаллов
-        Label crystalPriceLabel = overlay.Q<Label>("crystal-upgrade-price");
-        if (crystalPriceLabel != null)
+        VisualElement crystalPriceContainer = overlay.Q<VisualElement>("crystal-upgrade-price");
+        if (crystalPriceContainer != null)
         {
-            int crystalPrice = CrystalUpgradeSystem.GetUpgradePrice();
-            crystalPriceLabel.text = $"{crystalPrice} 💎";
+            Label crystalPriceText = crystalPriceContainer.Q<Label>("crystal-upgrade-price-text");
+            VisualElement crystalPriceIcon = crystalPriceContainer.Q<VisualElement>("crystal-upgrade-price-icon");
+            
+            if (crystalPriceText != null)
+            {
+                int crystalPrice = CrystalUpgradeSystem.GetUpgradePrice();
+                crystalPriceText.text = crystalPrice.ToString();
+            }
+            
+            if (crystalPriceIcon != null)
+            {
+                LoadCrystalIcon(crystalPriceIcon);
+            }
         }
         
         // Обновить цену улучшения карты
-        Label mapPriceLabel = overlay.Q<Label>("map-upgrade-price");
-        if (mapPriceLabel != null)
+        VisualElement mapPriceContainer = overlay.Q<VisualElement>("map-upgrade-price");
+        if (mapPriceContainer != null)
         {
-            int mapPrice = MapUpgradeSystem.GetMapPrice();
-            mapPriceLabel.text = $"{mapPrice} 💎";
+            Label mapPriceText = mapPriceContainer.Q<Label>("map-upgrade-price-text");
+            VisualElement mapPriceIcon = mapPriceContainer.Q<VisualElement>("map-upgrade-price-icon");
+            
+            if (mapPriceText != null)
+            {
+                int mapPrice = MapUpgradeSystem.GetMapPrice();
+                mapPriceText.text = mapPrice.ToString();
+            }
+            
+            if (mapPriceIcon != null)
+            {
+                LoadCrystalIcon(mapPriceIcon);
+            }
         }
         
         // Обновить состояние всех кнопок магазина
@@ -2729,14 +3155,14 @@ public class InventoryUI : MonoBehaviour
         Debug.Log($"[InventoryUI] ApplyMobileStylesToInventoryModal START - isMobile: {isMobile}, isTablet: {isTablet}, Screen: {screenWidth}x{screenHeight}, AspectRatio: {aspectRatio:F2}");
         
         // Применяем стили для мобильных устройств и планшетов
-        // Для десктопа тоже применяем стили к заголовкам
+        // Для десктопа и планшетов применяем десктопные стили
         bool isDesktop = !isMobile && !isTablet;
         
-        if (isDesktop)
+        if (isDesktop || isTablet)
         {
-            // Для десктопа применяем только стили к заголовкам
+            // Для десктопа и планшетов применяем десктопные стили
             ApplyDesktopSectionTitleStyles(modalContainer);
-            Debug.Log("[InventoryUI] Desktop detected, applying section title styles only");
+            Debug.Log($"[InventoryUI] {(isDesktop ? "Desktop" : "Tablet")} detected, applying desktop styles");
             return;
         }
         
@@ -2936,6 +3362,16 @@ public class InventoryUI : MonoBehaviour
         VisualElement petsGrid = modalContainer.Q<VisualElement>("pets-grid");
         if (petsGrid != null)
         {
+            // Убедиться, что сетка видна на планшетах
+            if (isTablet)
+            {
+                petsGrid.style.display = DisplayStyle.Flex;
+                petsGrid.style.visibility = Visibility.Visible;
+                petsGrid.style.opacity = 1f;
+                petsGrid.SetEnabled(true);
+                Debug.Log($"[InventoryUI] Tablet - petsGrid made visible: display={petsGrid.resolvedStyle.display}, visibility={petsGrid.resolvedStyle.visibility}");
+            }
+            
             // Увеличить marginBottom, чтобы создать больше пространства перед пагинацией
             petsGrid.style.marginBottom = isPhone ? 15f : 20f; // Увеличено для всех устройств
             petsGrid.style.marginTop = isPhone ? 2f : 8f;
@@ -2945,16 +3381,34 @@ public class InventoryUI : MonoBehaviour
             petsGrid.style.paddingRight = isPhone ? 1f : 4f;
             // Gap между элементами сетки контролируется через margin самих элементов
         }
+        else
+        {
+            Debug.LogError($"[InventoryUI] Tablet - petsGrid NOT FOUND in modalContainer!");
+        }
         
         // Уменьшить сетку активных питомцев
         VisualElement activePetsGrid = modalContainer.Q<VisualElement>("active-pets-grid");
         if (activePetsGrid != null)
         {
+            // Убедиться, что сетка видна на планшетах
+            if (isTablet)
+            {
+                activePetsGrid.style.display = DisplayStyle.Flex;
+                activePetsGrid.style.visibility = Visibility.Visible;
+                activePetsGrid.style.opacity = 1f;
+                activePetsGrid.SetEnabled(true);
+                Debug.Log($"[InventoryUI] Tablet - activePetsGrid made visible: display={activePetsGrid.resolvedStyle.display}, visibility={activePetsGrid.resolvedStyle.visibility}");
+            }
+            
             activePetsGrid.style.marginTop = isPhone ? 2f : 8f;
             activePetsGrid.style.marginBottom = isPhone ? 2f : 8f;
             activePetsGrid.style.paddingTop = isPhone ? 1f : 4f;
             activePetsGrid.style.paddingBottom = isPhone ? 1f : 4f;
             // Gap между элементами сетки контролируется через margin самих элементов
+        }
+        else
+        {
+            Debug.LogError($"[InventoryUI] Tablet - activePetsGrid NOT FOUND in modalContainer!");
         }
         
         // Применить более агрессивные стили для мобильных устройств
@@ -2986,6 +3440,16 @@ public class InventoryUI : MonoBehaviour
         VisualElement paginationControls = modalContainer.Q<VisualElement>("pagination-controls");
         if (paginationControls != null)
         {
+            // Убедиться, что пагинация видна на планшетах
+            if (isTablet)
+            {
+                paginationControls.style.display = DisplayStyle.Flex;
+                paginationControls.style.visibility = Visibility.Visible;
+                paginationControls.style.opacity = 1f;
+                paginationControls.SetEnabled(true);
+                Debug.Log($"[InventoryUI] Tablet - paginationControls made visible: display={paginationControls.resolvedStyle.display}, visibility={paginationControls.resolvedStyle.visibility}");
+            }
+            
             // Увеличить отступы сверху для всех устройств, чтобы пагинация была выше
             // margin-top - отступ от сетки питомцев (линия над пагинацией будет выше)
             // padding-top - внутренний отступ (сама пагинация будет выше)
@@ -3006,8 +3470,20 @@ public class InventoryUI : MonoBehaviour
                 if (child != null)
                 {
                     child.style.alignSelf = Align.Center;
+                    // Убедиться, что кнопки пагинации видны на планшетах
+                    if (isTablet && child is Button)
+                    {
+                        child.style.display = DisplayStyle.Flex;
+                        child.style.visibility = Visibility.Visible;
+                        child.style.opacity = 1f;
+                        child.SetEnabled(true);
+                    }
                 }
             }
+        }
+        else
+        {
+            Debug.LogError($"[InventoryUI] Tablet - paginationControls NOT FOUND in modalContainer!");
         }
         
         Label pageInfo = modalContainer.Q<VisualElement>("pagination-controls")?.Q<Label>("page-info");
@@ -3068,8 +3544,9 @@ public class InventoryUI : MonoBehaviour
         
         bool isMobile = PlatformDetector.IsMobile();
         bool isTablet = PlatformDetector.IsTablet();
+        bool isDesktop = !isMobile && !isTablet;
         
-        Debug.Log($"[InventoryUI] ApplyMobileStylesToPetSlot - Applying styles: isActive={isActive}, isPhone={isPhone}, isMobile={isMobile}, isTablet={isTablet}, isMobileLocal={PlatformDetector.IsMobile()}");
+        Debug.Log($"[InventoryUI] ApplyMobileStylesToPetSlot - Applying styles: isActive={isActive}, isPhone={isPhone}, isMobile={isMobile}, isTablet={isTablet}, isDesktop={isDesktop}");
         
         // Принудительно перезаписать CSS стили, установив важные свойства
         // Устанавливаем стили напрямую через код, чтобы они имели приоритет над CSS
@@ -3111,11 +3588,14 @@ public class InventoryUI : MonoBehaviour
             }
             else
             {
-                // Для десктопа: уменьшить на 15%, затем увеличить на 7% (было 64px и 56px из CSS)
-                // Сначала уменьшили на 15% = 54.4px и 47.6px
-                // Теперь увеличиваем на 7%: 54.4 * 1.07 = 58.208px, 47.6 * 1.07 = 50.932px
-                baseHeight = 64f * 0.85f * 1.07f; // 58.208f
-                baseMinHeight = 56f * 0.85f * 1.07f; // 50.932f
+                // Для десктопа: использовать размеры как на планшетах, но уменьшить на 20%
+                // Планшеты: baseHeight = 68.77px, baseMinHeight = 60.835px
+                // Desktop: уменьшаем на 20%
+                float tabletHeight = 52f * 1.15f * 1.15f; // 68.77px (как на планшетах)
+                float tabletMinHeight = 46f * 1.15f * 1.15f; // 60.835px (как на планшетах)
+                baseHeight = tabletHeight * 0.8f; // 55.016px (уменьшено на 20%)
+                baseMinHeight = tabletMinHeight * 0.8f; // 48.668px (уменьшено на 20%)
+                Debug.Log($"[InventoryUI] Active pet slot - DESKTOP: baseHeight={baseHeight}, baseMinHeight={baseMinHeight}");
             }
             
             // Для extra small уменьшаем на 10% (дополнительно к предыдущему уменьшению)
@@ -3132,8 +3612,9 @@ public class InventoryUI : MonoBehaviour
                 padding = 2f; // Увеличено в 10 раз: было 0.2px, стало 2px
                 margin = 2f; // Увеличено в 10 раз
             }
-            else if (isTablet)
+            else if (isTablet || isDesktop)
             {
+                // Для планшетов и десктопа одинаковые значения
                 padding = 3f; // Между телефоном 2f и старым планшетом 4f
                 margin = 3f; // Между телефоном 2f и старым планшетом 4f
             }
@@ -3175,6 +3656,13 @@ public class InventoryUI : MonoBehaviour
             slot.style.marginLeft = new StyleLength(0f);
             slot.style.marginRight = new StyleLength(0f);
             
+            // Для планшетов и десктопа центрируем содержимое ячейки вертикально
+            if (isTablet || isDesktop)
+            {
+                slot.style.justifyContent = Justify.Center;
+                slot.style.alignItems = Align.Center;
+            }
+            
             // Принудительно обновить отображение
             slot.MarkDirtyRepaint();
             
@@ -3192,13 +3680,23 @@ public class InventoryUI : MonoBehaviour
                 }
                 else if (isTablet)
                 {
-                    avatarSize = 32f * 0.75f; // Уменьшить на 25%: 24px
-                    avatarMargin = 4.5f; // Между телефоном 3f и старым планшетом 6f
+                    // Для планшетов увеличиваем размер аватара
+                    avatarSize = 50f; // Увеличено с 24px до 50px для планшетов
+                    avatarMargin = 8f; // Увеличено для планшетов
                 }
                 else
                 {
-                    avatarSize = 40f * 0.75f; // Уменьшить на 25%: 30px
-                    avatarMargin = 6f; // Увеличено в 10 раз
+                    // Для десктопа: уменьшаем на 20% от планшетных размеров
+                    if (isDesktop)
+                    {
+                        avatarSize = 50f * 0.8f; // 40px (уменьшено на 20% от планшетных 50px)
+                        avatarMargin = 8f * 0.8f; // 6.4px (уменьшено на 20%)
+                    }
+                    else
+                    {
+                        avatarSize = 40f * 0.75f; // Уменьшить на 25%: 30px
+                        avatarMargin = 6f; // Увеличено в 10 раз
+                    }
                 }
                 
                 avatarBlock.style.width = new StyleLength(avatarSize);
@@ -3209,13 +3707,21 @@ public class InventoryUI : MonoBehaviour
                 avatarBlock.style.maxHeight = new StyleLength(avatarSize);
                 avatarBlock.style.marginRight = new StyleLength(avatarMargin);
                 
+                // Для планшетов и десктопа центрируем avatarBlock вертикально
+                if (isTablet || isDesktop)
+                {
+                    avatarBlock.style.alignSelf = Align.Center;
+                    avatarBlock.style.justifyContent = Justify.Center;
+                    avatarBlock.style.alignItems = Align.Center;
+                }
+                
                 // Уменьшить размер эмоджи внутри avatarBlock (VisualElement, не Label)
                 // Иконка должна занимать большую часть размера avatarBlock
                 VisualElement emojiElement = avatarBlock.Q<VisualElement>(className: "pet-emoji");
                 if (emojiElement != null)
                 {
-                    // Иконка занимает 80% от размера avatarBlock
-                    float emojiDim = avatarSize * 0.8f;
+                    // Для планшетов и десктопа иконка занимает 90% от размера avatarBlock (увеличено с 80%)
+                    float emojiDim = (isTablet || isDesktop) ? avatarSize * 0.9f : avatarSize * 0.8f;
                     
                     emojiElement.style.width = new StyleLength(emojiDim);
                     emojiElement.style.height = new StyleLength(emojiDim);
@@ -3223,6 +3729,14 @@ public class InventoryUI : MonoBehaviour
                     emojiElement.style.minHeight = new StyleLength(emojiDim);
                     emojiElement.style.maxWidth = new StyleLength(emojiDim);
                     emojiElement.style.maxHeight = new StyleLength(emojiDim);
+                    
+                    // Для планшетов и десктопа центрируем иконку
+                    if (isTablet || isDesktop)
+                    {
+                        emojiElement.style.alignSelf = Align.Center;
+                        emojiElement.style.justifyContent = Justify.Center;
+                        emojiElement.style.alignItems = Align.Center;
+                    }
                 }
             }
             
@@ -3354,13 +3868,15 @@ public class InventoryUI : MonoBehaviour
             }
             else
             {
-                // Для desktop: увеличить на 5% (было уменьшено на 15%, теперь увеличиваем на 5% от базового)
-                // Базовый размер: 75px и 110px, уменьшили на 15% = 63.75px и 93.5px
-                // Теперь увеличиваем на 5%: 63.75 * 1.05 = 66.9375px, 93.5 * 1.05 = 98.175px
-                slotWidth = 75f * 0.85f * 1.05f; // 66.9375f
-                slotHeight = 110f * 0.85f * 1.05f; // 98.175f
-                padding = 4f;
-                margin = 2f;
+                // Для desktop: использовать размеры как на планшетах, но уменьшить на 30%
+                // Планшеты: baseWidth = 100px, baseHeight = 142px
+                // Desktop: уменьшаем на 30% = 70px и 99.4px
+                float tabletWidth = 50f * 2f; // 100px (как на планшетах)
+                float tabletHeight = 71f * 2f; // 142px (как на планшетах)
+                slotWidth = tabletWidth * 0.7f; // 70px (уменьшено на 30%)
+                slotHeight = tabletHeight * 0.7f; // 99.4px (уменьшено на 30%)
+                padding = 2.5f; // Немного уменьшено для меньших ячеек
+                margin = 2f; // Немного уменьшено
                 isPhone = false; // Для desktop не используем телефонные стили
                 Debug.Log($"[InventoryUI] Inventory slot - DESKTOP: slotWidth={slotWidth}, slotHeight={slotHeight}");
             }
@@ -3408,22 +3924,24 @@ public class InventoryUI : MonoBehaviour
                     nameLabel.style.visibility = Visibility.Hidden;
                 }
                 
-                // Для планшетов показываем редкость, для телефонов скрываем
+                // Для планшетов и десктопа показываем редкость, для телефонов скрываем
                 VisualElement rarityBadge = slot.Q<VisualElement>(className: "pet-rarity-badge");
                 if (rarityBadge != null)
                 {
-                    if (isTablet)
+                    if (isTablet || isDesktop)
                     {
-                        // Для планшетов показываем редкость и увеличиваем на 20%
+                        // Для планшетов и десктопа показываем редкость
                         rarityBadge.style.display = DisplayStyle.Flex;
                         rarityBadge.style.visibility = Visibility.Visible;
                         
                         // Для планшетов: базовый размер 72px ширина, 22px высота
                         // Увеличиваем на 20%, затем уменьшаем на 10% (только для планшетов): 1.2 * 0.9 = 1.08
+                        // Для десктопа: уменьшаем на 10% от планшетных размеров
                         float baseBadgeWidth = 72f;
                         float baseBadgeHeight = 22f;
-                        float badgeWidth = baseBadgeWidth * 1.08f; // 72px * 1.08 = 77.76px (только для планшетов)
-                        float badgeHeight = baseBadgeHeight * 1.08f; // 22px * 1.08 = 23.76px (только для планшетов)
+                        float multiplier = isTablet ? 1.08f : (1.08f * 0.9f); // Для десктопа уменьшаем на 10%
+                        float badgeWidth = baseBadgeWidth * multiplier;
+                        float badgeHeight = baseBadgeHeight * multiplier;
                         
                         rarityBadge.style.width = new StyleLength(badgeWidth);
                         rarityBadge.style.height = new StyleLength(badgeHeight);
@@ -3443,9 +3961,9 @@ public class InventoryUI : MonoBehaviour
                 VisualElement emojiContainer = slot.Q<VisualElement>(className: "pet-emoji-mobile");
                 if (emojiContainer != null)
                 {
-                    // Для планшетов увеличиваем размер контейнера на 50%
+                    // Для планшетов увеличиваем размер контейнера на 50%, для десктопа на 35% (меньше, чем планшеты)
                     float baseContainerSize = slotHeight * 0.478125f; // 0.5625 * 0.85 = 0.478125
-                    float containerSize = isTablet ? baseContainerSize * 1.5f : baseContainerSize;
+                    float containerSize = isTablet ? baseContainerSize * 1.5f : (isDesktop ? baseContainerSize * 1.35f : baseContainerSize);
                     emojiContainer.style.width = new StyleLength(containerSize);
                     emojiContainer.style.height = new StyleLength(containerSize);
                     emojiContainer.style.minWidth = new StyleLength(containerSize);
@@ -3470,8 +3988,9 @@ public class InventoryUI : MonoBehaviour
                     Label emojiLabel = emojiContainer.Q<Label>(className: "pet-emoji");
                     if (emojiLabel != null)
                     {
-                        // Emoji размер: для планшетов увеличиваем на 50% (0.44625 * 1.5 = 0.669375), затем увеличиваем на 30% для всех устройств, затем уменьшаем на 10%
-                        float emojiSizeMultiplier = isTablet ? 0.44625f * 1.5f : 0.44625f;
+                        // Emoji размер: для планшетов увеличиваем на 50%, для десктопа на 35%
+                        // Затем увеличиваем на 30% для всех устройств, затем уменьшаем на 10%
+                        float emojiSizeMultiplier = isTablet ? 0.44625f * 1.5f : (isDesktop ? 0.44625f * 1.35f : 0.44625f);
                         emojiSizeMultiplier *= 1.3f; // Увеличить на 30% для инвентаря
                         emojiSizeMultiplier *= 0.9f; // Уменьшить на 10%
                         float emojiSize = containerSize * emojiSizeMultiplier; 
@@ -3503,6 +4022,9 @@ public class InventoryUI : MonoBehaviour
             else
             {
                 // Для десктопа: стандартная стилизация
+                // Объявить emojiLabel в начале блока для использования в разных местах
+                Label emojiLabel = slot.Q<Label>(className: "pet-emoji");
+                
                 // Уменьшить размер эмоджи (увеличено в 10 раз)
             VisualElement emojiElement = slot.Q<VisualElement>(className: "pet-emoji");
             if (emojiElement != null)
@@ -3514,7 +4036,6 @@ public class InventoryUI : MonoBehaviour
                 }
                 
                 // Также проверить Label на случай, если используется где-то еще
-            Label emojiLabel = slot.Q<Label>(className: "pet-emoji");
             if (emojiLabel != null)
             {
                     // Для планшетов увеличиваем эмоджи на 50%, затем на 30% для всех устройств (для инвентаря), затем уменьшаем на 10%
@@ -3583,7 +4104,11 @@ public class InventoryUI : MonoBehaviour
                     {
                         slot.style.justifyContent = Justify.Center;
                         slot.style.alignItems = Align.Center;
-                        emojiLabel.style.marginBottom = new StyleLength(0f);
+                        // Проверить, что emojiLabel существует перед использованием
+                        if (emojiLabel != null)
+                        {
+                            emojiLabel.style.marginBottom = new StyleLength(0f);
+                        }
                         rarityBadge.style.marginTop = new StyleLength(0f);
                     }
             }
@@ -3810,11 +4335,12 @@ public class InventoryUI : MonoBehaviour
         {
             if (shopItemButton != null)
             {
-                // Более агрессивные размеры для маленьких экранов
-                // Для планшетов увеличиваем в 2 раза
-                float minHeight = isPhone ? 50f : (isTablet ? 160f : (isSmallScreen ? 65f : 80f)); // Для планшетов: 80f * 2 = 160f
-                float padding = isPhone ? 6f : (isTablet ? 24f : (isSmallScreen ? 8f : 12f)); // Для планшетов: 12f * 2 = 24f
+                // Уменьшенные размеры для мобильных устройств
+                // Для телефонов: уменьшаем высоту и padding
+                float minHeight = isPhone ? 40f : (isTablet ? 120f : (isSmallScreen ? 55f : 80f)); // Уменьшено для телефонов: 50f -> 40f, для планшетов: 160f -> 120f
+                float padding = isPhone ? 4f : (isTablet ? 18f : (isSmallScreen ? 6f : 12f)); // Уменьшено для телефонов: 6f -> 4f, для планшетов: 24f -> 18f
                 shopItemButton.style.minHeight = minHeight; // Было 140px
+                shopItemButton.style.height = StyleKeyword.Auto; // Позволить кнопке автоматически подстраиваться под содержимое
                 shopItemButton.style.paddingTop = padding; // Было 25px
                 shopItemButton.style.paddingBottom = padding; // Было 25px
                 shopItemButton.style.paddingLeft = padding; // Было 25px
@@ -3830,29 +4356,30 @@ public class InventoryUI : MonoBehaviour
             }
         }
         
-        if (shopItemButtons.Count == 0)
-        {
-            Debug.LogError("[InventoryUI] No shop item buttons found at all!");
-        }
-        
-        // Найти все иконки яиц (теперь VisualElement, а не Label)
+        // Уменьшить размер иконки яйца для мобильных устройств
         var eggEmojis = modalContainer.Query<VisualElement>("egg-emoji").ToList();
         foreach (VisualElement eggEmoji in eggEmojis)
         {
             if (eggEmoji != null)
             {
-                float size = isPhone ? 25f : (isTablet ? 80f : (isSmallScreen ? 30f : 40f)); // Для планшетов: 40f * 2 = 80f
-                eggEmoji.style.width = size; // Было 90px
-                eggEmoji.style.height = size; // Было 90px
+                float size = isPhone ? 20f : (isTablet ? 60f : (isSmallScreen ? 25f : 40f)); // Уменьшено для телефонов: 25f -> 20f, для планшетов: 80f -> 60f
+                eggEmoji.style.width = size;
+                eggEmoji.style.height = size;
                 eggEmoji.style.minWidth = size;
                 eggEmoji.style.minHeight = size;
                 eggEmoji.style.maxWidth = size;
                 eggEmoji.style.maxHeight = size;
-                eggEmoji.style.marginRight = isPhone ? 6f : (isTablet ? 20f : (isSmallScreen ? 8f : 10f)); // Для планшетов: 10f * 2 = 20f
+                eggEmoji.style.marginRight = isPhone ? 4f : (isTablet ? 16f : (isSmallScreen ? 6f : 10f)); // Уменьшено для телефонов: 6f -> 4f
                 // Загрузить иконку
                 LoadEggIcon(eggEmoji);
             }
         }
+        
+        if (shopItemButtons.Count == 0)
+        {
+            Debug.LogError("[InventoryUI] No shop item buttons found at all!");
+        }
+        
         
         // Найти все иконки карт (теперь VisualElement, а не Label)
         var mapEmojis = modalContainer.Query<VisualElement>("map-emoji").ToList();
@@ -3860,14 +4387,14 @@ public class InventoryUI : MonoBehaviour
         {
             if (mapEmoji != null)
             {
-                float size = isPhone ? 25f : (isTablet ? 80f : (isSmallScreen ? 30f : 40f)); // Для планшетов: 40f * 2 = 80f
+                float size = isPhone ? 20f : (isTablet ? 60f : (isSmallScreen ? 25f : 40f)); // Уменьшено для телефонов: 25f -> 20f, для планшетов: 80f -> 60f
                 mapEmoji.style.width = size;
                 mapEmoji.style.height = size;
                 mapEmoji.style.minWidth = size;
                 mapEmoji.style.minHeight = size;
                 mapEmoji.style.maxWidth = size;
                 mapEmoji.style.maxHeight = size;
-                mapEmoji.style.marginRight = isPhone ? 6f : (isTablet ? 20f : (isSmallScreen ? 8f : 10f)); // Для планшетов: 10f * 2 = 20f
+                mapEmoji.style.marginRight = isPhone ? 4f : (isTablet ? 16f : (isSmallScreen ? 6f : 10f)); // Уменьшено для телефонов: 6f -> 4f
                 // Загрузить иконку
                 LoadMapIcon(mapEmoji);
             }
@@ -3878,10 +4405,14 @@ public class InventoryUI : MonoBehaviour
         {
             if (crystalIcon != null)
             {
-                float size = isPhone ? 25f : (isTablet ? 100f : (isSmallScreen ? 30f : 50f)); // Для планшетов: 50f * 2 = 100f
+                float size = isPhone ? 20f : (isTablet ? 80f : (isSmallScreen ? 25f : 50f)); // Уменьшено для телефонов: 25f -> 20f, для планшетов: 100f -> 80f
                 crystalIcon.style.width = size; // Было 90px
                 crystalIcon.style.height = size; // Было 90px
-                crystalIcon.style.marginRight = isPhone ? 6f : (isTablet ? 20f : (isSmallScreen ? 8f : 10f)); // Для планшетов: 10f * 2 = 20f
+                crystalIcon.style.minWidth = size;
+                crystalIcon.style.minHeight = size;
+                crystalIcon.style.maxWidth = size;
+                crystalIcon.style.maxHeight = size;
+                crystalIcon.style.marginRight = isPhone ? 4f : (isTablet ? 16f : (isSmallScreen ? 6f : 10f)); // Уменьшено для телефонов: 6f -> 4f
             }
         }
         
@@ -3905,7 +4436,29 @@ public class InventoryUI : MonoBehaviour
             }
         }
         
-        // Уменьшить кнопку закрытия
+        // Скрыть кнопку закрытия на мобильных устройствах и планшетах
+        VisualElement closeShopButton = modalContainer.Q<VisualElement>("close-shop-button");
+        if (closeShopButton != null)
+        {
+            // Скрыть кнопку и её overlay на мобильных устройствах и планшетах
+            closeShopButton.style.display = DisplayStyle.None;
+            closeShopButton.style.visibility = Visibility.Hidden;
+            closeShopButton.style.opacity = 0f;
+            closeShopButton.SetEnabled(false);
+            
+            // Также скрыть overlay для кликов, если он был создан
+            if (closeShopButton.userData != null && closeShopButton.userData is VisualElement clickOverlay)
+            {
+                clickOverlay.style.display = DisplayStyle.None;
+                clickOverlay.style.visibility = Visibility.Hidden;
+                clickOverlay.style.opacity = 0f;
+                clickOverlay.SetEnabled(false);
+            }
+            
+            Debug.Log($"[InventoryUI] Close shop button hidden on mobile/tablet (isPhone={isPhone}, isTablet={isTablet})");
+        }
+        
+        // Уменьшить кнопку закрытия (для десктопа, если она есть)
         Button closeButton = modalContainer.Q<Button>("close-button");
         if (closeButton != null)
         {
@@ -3937,7 +4490,7 @@ public class InventoryUI : MonoBehaviour
             if (isMobile || isTablet)
         {
             ApplyMobileStylesToShopModal(modalContainer);
-            }
+        }
             else
             {
                 // Для десктопа применяем десктопные стили
@@ -4071,18 +4624,6 @@ public class InventoryUI : MonoBehaviour
                 float newEmojiSize = baseEmojiSize * 0.6f; // Уменьшить на 40%: 70px * 0.6 = 42px
                 float newEmojiDim = baseEmojiDim * 0.6f; // Уменьшить на 40%: 90px * 0.6 = 54px
                 
-                // Найти иконку яйца
-                VisualElement eggEmoji = shopItemButton.Q<VisualElement>("egg-emoji");
-                if (eggEmoji != null)
-                {
-                    eggEmoji.style.width = new StyleLength(newEmojiDim);
-                    eggEmoji.style.height = new StyleLength(newEmojiDim);
-                    eggEmoji.style.minWidth = new StyleLength(newEmojiDim);
-                    eggEmoji.style.minHeight = new StyleLength(newEmojiDim);
-                    eggEmoji.style.maxWidth = new StyleLength(newEmojiDim);
-                    eggEmoji.style.maxHeight = new StyleLength(newEmojiDim);
-                }
-                
                 // Найти иконку кристалла
                 VisualElement crystalIcon = shopItemButton.Q<VisualElement>("crystal-icon");
                 if (crystalIcon != null)
@@ -4201,6 +4742,26 @@ public class InventoryUI : MonoBehaviour
         }
     }
     
+    private void OnEnable()
+    {
+#if RewardedAd_yg
+        // Подписаться на события YG2 RewardedAd
+        YG2.onRewardAdv += OnRewardedAdReward;
+        YG2.onCloseRewardedAdv += OnRewardedAdClose;
+        YG2.onErrorRewardedAdv += OnRewardedAdError;
+#endif
+    }
+    
+    private void OnDisable()
+    {
+#if RewardedAd_yg
+        // Отписаться от событий YG2 RewardedAd
+        YG2.onRewardAdv -= OnRewardedAdReward;
+        YG2.onCloseRewardedAdv -= OnRewardedAdClose;
+        YG2.onErrorRewardedAdv -= OnRewardedAdError;
+#endif
+    }
+    
     private void OnDestroy()
     {
         // Отписаться от события изменения монет
@@ -4209,6 +4770,13 @@ public class InventoryUI : MonoBehaviour
         // Отписаться от изменения языка
 #if Localization_yg
         LocalizationManager.OnLanguageChangedEvent -= OnLanguageChanged;
+#endif
+        
+#if RewardedAd_yg
+        // Отписаться от событий YG2 RewardedAd
+        YG2.onRewardAdv -= OnRewardedAdReward;
+        YG2.onCloseRewardedAdv -= OnRewardedAdClose;
+        YG2.onErrorRewardedAdv -= OnRewardedAdError;
 #endif
     }
     
@@ -4233,6 +4801,366 @@ public class InventoryUI : MonoBehaviour
             UpdateModalUI();
             UpdatePagination();
         }
+        
+        // Обновить тексты модального окна рекламы, если открыто
+        if (adRewardModalOverlay != null)
+        {
+            UpdateAdRewardModalTexts(adRewardModalOverlay);
+        }
     }
+    
+    /// <summary>
+    /// Открыть модальное окно с предложением посмотреть рекламу
+    /// </summary>
+    private void OpenAdRewardModal()
+    {
+        // Загрузить UXML, если не загружен
+        // ВАЖНО: В WebGL билде SerializeField должен быть назначен в инспекторе - это самый надежный способ
+        if (adRewardModalAsset == null)
+        {
+            Debug.LogWarning("[InventoryUI] adRewardModalAsset не назначен в инспекторе, пытаемся загрузить через Resources...");
+            
+            // Попытка загрузить через Resources (требует, чтобы файл был в папке Resources)
+            adRewardModalAsset = Resources.Load<VisualTreeAsset>("UI Toolkit/AdRewardModal");
+            
+            // Если не найдено, попробовать альтернативный путь
+            if (adRewardModalAsset == null)
+            {
+                adRewardModalAsset = Resources.Load<VisualTreeAsset>("AdRewardModal");
+            }
+            
+            #if UNITY_EDITOR
+            // Если не найдено в Resources, попробовать через AssetDatabase (только в редакторе)
+            if (adRewardModalAsset == null)
+            {
+                adRewardModalAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/UI Toolkit/AdRewardModal.uxml");
+                if (adRewardModalAsset != null)
+                {
+                    Debug.Log("[InventoryUI] AdRewardModal загружен через AssetDatabase (редактор)");
+                }
+            }
+            #endif
+            
+            if (adRewardModalAsset == null)
+            {
+                Debug.LogError("[InventoryUI] AdRewardModal asset не найден! Для WebGL билда необходимо назначить файл AdRewardModal.uxml в инспекторе компонента InventoryUI (поле adRewardModalAsset). Альтернативно, файл должен находиться в папке Resources/UI Toolkit/ или Resources/");
+                return;
+            }
+            else
+            {
+                Debug.Log("[InventoryUI] AdRewardModal asset успешно загружен через Resources");
+            }
+        }
+        
+        // Создать модальное окно
+        adRewardModalOverlay = adRewardModalAsset.Instantiate();
+        
+        VisualElement overlay = adRewardModalOverlay;
+        
+        // Установить правильное позиционирование
+        overlay.style.position = Position.Absolute;
+        overlay.style.left = 0;
+        overlay.style.top = 0;
+        overlay.style.right = 0;
+        overlay.style.bottom = 0;
+        overlay.style.width = Length.Percent(100);
+        overlay.style.height = Length.Percent(100);
+        overlay.style.justifyContent = Justify.Center;
+        overlay.style.alignItems = Align.Center;
+        
+        root.Add(adRewardModalOverlay);
+        
+        // Найти элементы UI
+        VisualElement modalContainer = overlay.Q<VisualElement>("modal-container");
+        Label adRewardText = overlay.Q<Label>("ad-reward-text");
+        Button watchAdButton = overlay.Q<Button>("watch-ad-button");
+        
+        if (modalContainer == null || adRewardText == null || watchAdButton == null)
+        {
+            Debug.LogError("Не найдены необходимые элементы в AdRewardModal!");
+            return;
+        }
+        
+        // Установить локализованный текст
+        UpdateAdRewardModalTexts(overlay);
+        
+        // Применить адаптивные стили
+        ApplyAdRewardModalStyles(modalContainer);
+        
+        // Обработчик клика на overlay (вне контейнера) - закрыть модальное окно
+        overlay.RegisterCallback<ClickEvent>(evt =>
+        {
+            // Проверить, что клик был именно на overlay, а не на container или его дочерние элементы
+            VisualElement target = evt.target as VisualElement;
+            if (target != null)
+            {
+                // Проверить, что клик был на overlay или его прямом дочернем элементе (но не на container)
+                VisualElement current = target;
+                while (current != null && current != overlay)
+                {
+                    if (current == modalContainer)
+                    {
+                        // Клик был внутри container, не закрываем
+                        return;
+                    }
+                    current = current.parent;
+                }
+                
+                // Если дошли до overlay, значит клик был вне container
+                if (current == overlay)
+                {
+                    CloseAdRewardModal();
+                }
+            }
+        });
+        
+        // Обработчик клика на кнопку "смотреть рекламу"
+        watchAdButton.RegisterCallback<ClickEvent>(evt =>
+        {
+            evt.StopPropagation(); // Остановить распространение события
+            UIAnimations.AnimateBounce(watchAdButton, this);
+            OnWatchAdClicked();
+        });
+        
+        // Анимация появления
+        UIAnimations.AnimateModalAppear(modalContainer, this);
+    }
+    
+    /// <summary>
+    /// Закрыть модальное окно рекламы
+    /// </summary>
+    private void CloseAdRewardModal()
+    {
+        if (adRewardModalOverlay != null)
+        {
+            VisualElement overlay = adRewardModalOverlay;
+            VisualElement modalContainer = overlay.Q<VisualElement>("modal-container");
+            
+            if (modalContainer != null)
+            {
+                // Анимация исчезновения
+                UIAnimations.AnimateModalDisappear(modalContainer, this, () =>
+                {
+                    if (adRewardModalOverlay != null)
+                    {
+                        adRewardModalOverlay.RemoveFromHierarchy();
+                        adRewardModalOverlay = null;
+                    }
+                });
+            }
+            else
+            {
+                if (adRewardModalOverlay != null)
+                {
+                    adRewardModalOverlay.RemoveFromHierarchy();
+                    adRewardModalOverlay = null;
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Применить адаптивные стили к модальному окну рекламы
+    /// </summary>
+    private void ApplyAdRewardModalStyles(VisualElement container)
+    {
+        if (container == null) return;
+        
+        bool isMobile = PlatformDetector.IsMobile();
+        bool isTablet = PlatformDetector.IsTablet();
+        bool isDesktop = !isMobile && !isTablet;
+        
+        if (isDesktop)
+        {
+            // Desktop: фиксированная ширина 400px, высота 250px
+            container.style.width = 400f;
+            container.style.height = 250f;
+            container.style.maxWidth = 400f;
+            container.style.maxHeight = 250f;
+        }
+        else if (isTablet)
+        {
+            // Tablet: фиксированная ширина 500px, высота 300px
+            container.style.width = 500f;
+            container.style.height = 300f;
+            container.style.maxWidth = 500f;
+            container.style.maxHeight = 300f;
+        }
+        else
+        {
+            // Mobile/Phone: ширина 85% экрана, высота auto
+            container.style.width = Length.Percent(85);
+            container.style.height = StyleKeyword.Auto;
+            container.style.maxWidth = Length.Percent(85);
+            container.style.maxHeight = StyleKeyword.Auto;
+        }
+        
+        // Адаптивные размеры шрифтов
+        Label adRewardText = container.Q<Label>("ad-reward-text");
+        if (adRewardText != null)
+        {
+            if (isTablet)
+            {
+                adRewardText.style.fontSize = 24f;
+            }
+            else if (isMobile)
+            {
+                adRewardText.style.fontSize = 18f;
+            }
+            else
+            {
+                adRewardText.style.fontSize = 20f;
+            }
+        }
+        
+        // Адаптивные размеры кнопки
+        Button watchAdButton = container.Q<Button>("watch-ad-button");
+        if (watchAdButton != null)
+        {
+            if (isTablet)
+            {
+                watchAdButton.style.width = 240f;
+                watchAdButton.style.height = 70f;
+                watchAdButton.style.fontSize = 26f;
+            }
+            else if (isMobile)
+            {
+                watchAdButton.style.width = Length.Percent(90);
+                watchAdButton.style.height = 55f;
+                watchAdButton.style.fontSize = 20f;
+            }
+            else
+            {
+                watchAdButton.style.width = 200f;
+                watchAdButton.style.height = 60f;
+                watchAdButton.style.fontSize = 22f;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Обновить тексты модального окна рекламы (локализация)
+    /// </summary>
+    private void UpdateAdRewardModalTexts(VisualElement overlay)
+    {
+        if (overlay == null) return;
+        
+        Label adRewardText = overlay.Q<Label>("ad-reward-text");
+        if (adRewardText != null)
+        {
+            // Получить цену яйца (использовать сохраненную цену или текущую)
+            int eggPrice = pendingEggPrice > 0 ? pendingEggPrice : GetCurrentEggPrice();
+            adRewardText.text = LocalizationManager.GetAdRewardMessage(eggPrice);
+        }
+        
+        Button watchAdButton = overlay.Q<Button>("watch-ad-button");
+        if (watchAdButton != null)
+        {
+            watchAdButton.text = LocalizationManager.GetWatchAdButton();
+        }
+    }
+    
+    /// <summary>
+    /// Получить текущую цену яйца
+    /// </summary>
+    private int GetCurrentEggPrice()
+    {
+        ShopManager shopManager = FindObjectOfType<ShopManager>();
+        return shopManager != null ? shopManager.GetEggPrice() : 100;
+    }
+    
+    /// <summary>
+    /// Обработчик клика на кнопку "смотреть рекламу"
+    /// </summary>
+    private void OnWatchAdClicked()
+    {
+#if RewardedAd_yg
+        // Показать рекламу через YG2
+        YG2.RewardedAdvShow("egg_purchase");
+        Debug.Log("[InventoryUI] Запрошена реклама с наградой");
+#else
+        Debug.LogWarning("[InventoryUI] Модуль RewardedAd не подключен! Невозможно показать рекламу.");
+        // В редакторе или без модуля - симулировать награду
+        #if UNITY_EDITOR
+        // Выдать награду за просмотр рекламы (симуляция для редактора)
+        // Награда = недостающая сумма для покупки яйца (цена яйца - текущие монеты)
+        int currentCoins = CoinManager.GetCoins();
+        int eggPrice = pendingEggPrice > 0 ? pendingEggPrice : GetCurrentEggPrice();
+        
+        // Рассчитать недостающую сумму
+        int coinsNeeded = eggPrice - currentCoins;
+        
+        // Если недостающая сумма меньше или равна 0, значит монет уже достаточно
+        if (coinsNeeded <= 0)
+        {
+            coinsNeeded = eggPrice; // Выдать полную цену яйца как награду
+        }
+        
+        Debug.Log($"[InventoryUI] Симуляция: начисляем {coinsNeeded} монет (редактор, цена яйца: {eggPrice}, было монет: {currentCoins}, недостаточно: {coinsNeeded})");
+        CoinManager.AddCoins(coinsNeeded);
+        pendingEggPrice = 0; // Сбросить сохраненную цену
+        CloseAdRewardModal();
+        #endif
+#endif
+    }
+    
+#if RewardedAd_yg
+    /// <summary>
+    /// Обработчик получения награды за просмотр рекламы
+    /// </summary>
+    private void OnRewardedAdReward(string id)
+    {
+        Debug.Log($"[InventoryUI] Получена награда за рекламу, ID: {id}");
+        
+        // Выдать награду за просмотр рекламы
+        // Награда = недостающая сумма для покупки яйца (цена яйца - текущие монеты)
+        int currentCoins = CoinManager.GetCoins();
+        int eggPrice = pendingEggPrice > 0 ? pendingEggPrice : GetCurrentEggPrice();
+        
+        // Рассчитать недостающую сумму
+        int coinsNeeded = eggPrice - currentCoins;
+        
+        // Если недостающая сумма меньше или равна 0, значит монет уже достаточно
+        if (coinsNeeded <= 0)
+        {
+            coinsNeeded = eggPrice; // Выдать полную цену яйца как награду
+        }
+        
+        CoinManager.AddCoins(coinsNeeded);
+        Debug.Log($"[InventoryUI] Начислено {coinsNeeded} монет за просмотр рекламы (цена яйца: {eggPrice}, было монет: {currentCoins}, недостаточно: {coinsNeeded})");
+        
+        // Сбросить сохраненную цену
+        pendingEggPrice = 0;
+        
+        // Закрыть модальное окно
+        CloseAdRewardModal();
+    }
+    
+    /// <summary>
+    /// Обработчик закрытия рекламы
+    /// </summary>
+    private void OnRewardedAdClose()
+    {
+        Debug.Log("[InventoryUI] Реклама закрыта");
+        // Закрыть модальное окно, если оно еще открыто
+        if (adRewardModalOverlay != null)
+        {
+            CloseAdRewardModal();
+        }
+    }
+    
+    /// <summary>
+    /// Обработчик ошибки рекламы
+    /// </summary>
+    private void OnRewardedAdError()
+    {
+        Debug.LogWarning("[InventoryUI] Ошибка при показе рекламы");
+        // Закрыть модальное окно при ошибке
+        if (adRewardModalOverlay != null)
+        {
+            CloseAdRewardModal();
+        }
+    }
+#endif
 }
 

@@ -83,11 +83,11 @@ public static class PlatformDetector
     /// Использует YG2.envir.isDesktop
     /// </summary>
     public static bool IsDesktop()
-    {
+            {
         if (_isDesktop.HasValue)
         {
             return _isDesktop.Value;
-        }
+            }
         
         #if EnvirData_yg
         if (YG2.envir != null)
@@ -177,7 +177,7 @@ public static class PlatformDetector
         
         // Используем реальные размеры экрана для адаптивности UI
         if (realWidth > 0)
-        {
+            {
             return realWidth;
         }
         
@@ -237,7 +237,7 @@ public static class PlatformDetector
     /// </summary>
     public static int GetRealScreenHeight()
     {
-        #if UNITY_WEBGL && !UNITY_EDITOR
+    #if UNITY_WEBGL && !UNITY_EDITOR
         return GetRealScreenHeightJS();
     #else
         return Screen.height;

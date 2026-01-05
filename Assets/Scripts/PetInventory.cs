@@ -67,10 +67,19 @@ public class PetInventory : MonoBehaviour
         if (petData != null)
         {
             pets.Add(petData);
-            Debug.Log($"Питомец добавлен в инвентарь: {petData.petName} ({petData.rarity})");
+            Debug.Log($"[PetInventory] Питомец добавлен в инвентарь: {petData.petName} ({petData.rarity}), всего питомцев: {pets.Count}");
             OnPetAdded?.Invoke(petData);
+            
             // Автоматическое сохранение при добавлении питомца
-            GameSaveManager.Instance?.SaveGameData();
+            if (GameSaveManager.Instance != null)
+            {
+                Debug.Log($"[PetInventory] Вызываем GameSaveManager.SaveGameData() для сохранения {pets.Count} питомцев");
+                GameSaveManager.Instance.SaveGameData();
+            }
+            else
+            {
+                Debug.LogError("[PetInventory] GameSaveManager.Instance == null, сохранение невозможно!");
+            }
         }
     }
     

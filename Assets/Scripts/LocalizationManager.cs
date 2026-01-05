@@ -125,6 +125,14 @@ public static class LocalizationManager
     {
         return GetCurrentLanguage() == "en" ? "Go to Twilight Valleys" : "Перейти в сумеречные долины";
     }
+    
+    /// <summary>
+    /// Получить текст над магазином (3D текст)
+    /// </summary>
+    public static string GetShop3DText()
+    {
+        return GetCurrentLanguage() == "en" ? "Shop" : "Магазин";
+    }
 
     // ========== Рюкзак ==========
     
@@ -176,6 +184,31 @@ public static class LocalizationManager
         {
             return $"Страница {currentPage + 1} из {totalPages}";
         }
+    }
+
+    // ========== Реклама за монеты ==========
+    
+    /// <summary>
+    /// Получить текст сообщения о недостатке кристаллов
+    /// </summary>
+    public static string GetAdRewardMessage(int rewardAmount = 100)
+    {
+        if (GetCurrentLanguage() == "en")
+        {
+            return $"Not enough crystals! Watch an ad and get {rewardAmount} crystals!";
+        }
+        else
+        {
+            return $"Не хватает кристаллов! Посмотрите рекламу и получите {rewardAmount} кристаллов!";
+        }
+    }
+    
+    /// <summary>
+    /// Получить текст кнопки "Смотреть рекламу"
+    /// </summary>
+    public static string GetWatchAdButton()
+    {
+        return GetCurrentLanguage() == "en" ? "Watch ad" : "Смотреть рекламу";
     }
 }
 

@@ -45,6 +45,7 @@
     margin: auto;
     flex-shrink: 0;
     flex-grow: 0;
+    position: relative;
 }
 
 .content-wrapper {
@@ -83,6 +84,59 @@
 }
 
 .close-button:active {
+    background-color: #cc0000;
+}
+
+/* Кнопка закрытия магазина - адаптивная */
+.shop-close-button {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
+    min-height: 50px;
+    max-width: 50px;
+    max-height: 50px;
+    background-color: #ff4444;
+    border-radius: 25px;
+    border-width: 3px;
+    border-color: #cc0000;
+    box-shadow: 0 3px 8px rgba(255, 68, 68, 0.4);
+    z-index: 1001;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+    flex-grow: 0;
+    padding: 0px;
+    margin: 0px;
+    cursor: pointer;
+    display: flex;
+    overflow: visible;
+}
+
+.shop-close-button > Label {
+    color: #ffffff;
+    font-size: 28px;
+    font-weight: bold;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    width: auto;
+    height: auto;
+    min-width: 0px;
+    min-height: 0px;
+    margin: 0px;
+    padding: 0px;
+    pointer-events: none;
+}
+
+.shop-close-button-hover {
+    background-color: #ff6666;
+    border-color: #ff0000;
+    box-shadow: 0 5px 12px rgba(255, 68, 68, 0.6);
+}
+
+.shop-close-button-active {
     background-color: #cc0000;
 }
 
@@ -646,17 +700,38 @@
 }
 
 .shop-item-price {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    flex-shrink: 0;
+    margin-left: 20px;
+}
+
+.shop-price-text {
     font-size: 22px;
     font-weight: bold;
     color: #9b59b6;
     -unity-font-style: bold;
-    flex-shrink: 0;
-    -unity-text-align: middle-right;
-    margin-left: 20px;
+    -unity-text-align: middle-center;
+    white-space: nowrap;
 }
 
-.buy-egg-button .shop-item-price {
+.buy-egg-button .shop-price-text {
     color: #ffaa00;
+}
+
+.shop-price-icon {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    max-width: 24px;
+    max-height: 24px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    flex-shrink: 0;
 }
 
 /* Уведомление о выигрыше питомца */
@@ -727,4 +802,70 @@
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
+}
+
+/* Модальное окно рекламы */
+.ad-reward-modal-container {
+    width: 400px;
+    height: 250px;
+    max-width: 90%;
+    max-height: 90%;
+    background-color: #f0f9ff;
+    border-radius: 25px;
+    border-width: 5px;
+    border-color: #00d4ff;
+    box-shadow: 0 15px 50px rgba(0, 212, 255, 0.4);
+    flex-direction: column;
+    padding: 30px;
+    overflow: hidden;
+    align-self: center;
+    margin: auto;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.ad-reward-content {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    gap: 25px;
+}
+
+.ad-reward-text {
+    font-size: 20px;
+    font-weight: bold;
+    color: #424242;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    white-space: normal;
+    text-align: center;
+    width: 100%;
+}
+
+.watch-ad-button {
+    width: 200px;
+    height: 60px;
+    background-color: #ff6b35;
+    border-radius: 18px;
+    border-width: 4px;
+    border-color: #ff4500;
+    color: #ffffff;
+    font-size: 22px;
+    font-weight: bold;
+    -unity-font-style: bold;
+    box-shadow: 0 6px 15px rgba(255, 107, 53, 0.5);
+    flex-shrink: 0;
+}
+
+.watch-ad-button:hover {
+    background-color: #ff8c5a;
+    border-color: #ff6b35;
+    box-shadow: 0 8px 25px rgba(255, 107, 53, 0.8), 0 0 20px rgba(255, 107, 53, 0.4);
+}
+
+.watch-ad-button:active {
+    background-color: #e55a2b;
+    box-shadow: 0 3px 8px rgba(255, 107, 53, 0.4);
 }

@@ -1,5 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections;
+#if Storage_yg
+using YG;
+#endif
 
 /// <summary>
 /// Менеджер магазина с динамической ценой яиц и улучшением HP кристаллов в стиле Roblox
@@ -209,27 +213,57 @@ public class ShopManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Получить цену яйца на основе количества питомцев
+    /// Получить текущую цену яйца на основе количества питомцев в инвентаре
     /// </summary>
     public int GetEggPrice()
     {
-        int petCount = petInventory.GetTotalPetCount();
+        int petCount = PetInventory.Instance != null ? PetInventory.Instance.GetTotalPetCount() : 0;
         
+        // Рассчитать цену на основе количества питомцев:
+        // 0 питомцев - 100
+        // 1 питомец - 100
+        // 2 питомца - 200
+        // 3 питомца - 400
+        // 4 питомца - 600
+        // 5 питомцев - 800
+        // Больше 5 питомцев - всегда 1000
+        int price;
         switch (petCount)
         {
             case 0:
-                return 10;
             case 1:
-                return 15;
+                price = 100;
+                break;
             case 2:
-                return 30;
+                price = 200;
+                break;
             case 3:
-                return 50;
+                price = 400;
+                break;
             case 4:
-                return 100;
-            default: // >= 5
-                return 200;
+                price = 600;
+                break;
+            case 5:
+                price = 800;
+                break;
+            default:
+                price = 1000; // Больше 5 питомцев - всегда 1000
+                break;
         }
+        
+        Debug.Log($"[ShopManager] GetEggPrice: У игрока {petCount} питомцев, цена яйца: {price}");
+        return price;
+    }
+    
+    /// <summary>
+    /// Увеличить цену яйца после покупки (теперь не используется, так как цена рассчитывается динамически)
+    /// Оставлено для обратной совместимости, но ничего не делает
+    /// </summary>
+    public void IncreaseEggPrice()
+    {
+        // Цена теперь рассчитывается динамически на основе количества питомцев
+        // Этот метод больше не нужен, но оставлен для обратной совместимости
+        Debug.Log($"[ShopManager] IncreaseEggPrice() вызван, но цена теперь рассчитывается динамически на основе количества питомцев");
     }
     
     /// <summary>
@@ -247,13 +281,25 @@ public class ShopManager : MonoBehaviour
         // Списываем монеты
         CoinManager.SpendCoins(price);
         
+        // Цена теперь рассчитывается динамически на основе количества питомцев
+        // Увеличение цены не требуется
+        
         // Запускаем вылупление яйца
         if (hatchingManager != null)
         {
             hatchingManager.StartHatching();
         }
         
-        // Обновляем цены
+        // Обновляем цены в UI (цена обновится автоматически после добавления питомца)
+        UpdatePrices();
+    }
+    
+    /// <summary>
+    /// Обновить цены с небольшой задержкой для гарантии сохранения
+    /// </summary>
+    private System.Collections.IEnumerator UpdatePricesDelayed()
+    {
+        yield return null; // Подождать один кадр
         UpdatePrices();
     }
     
