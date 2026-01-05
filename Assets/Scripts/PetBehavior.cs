@@ -27,6 +27,16 @@ public class PetBehavior : MonoBehaviour
     private float lastCoinTime = 0f;
     private float coinInterval = 1f; // Интервал добавления монет (1 секунда)
     
+    // Кэшированные компоненты для оптимизации
+    private PetEmotionUI emotionUI; // Кэш компонента эмоций
+    private float cachedMapMultiplier = 1f; // Кэш множителя карты
+    private float lastMapMultiplierUpdate = 0f; // Время последнего обновления множителя карты
+    private const float MAP_MULTIPLIER_UPDATE_INTERVAL = 1f; // Интервал обновления множителя карты (1 секунда)
+    
+    // Оптимизация поворота к кристаллу
+    private float lastRotationUpdate = 0f; // Время последнего обновления поворота
+    private const float ROTATION_UPDATE_INTERVAL = 0.1f; // Обновлять поворот раз в 0.1 секунды вместо каждого кадра
+    
     // Позиция и направление при начале добычи
     private Vector3 miningPosition;
     private Vector3 miningDirection;
@@ -81,6 +91,9 @@ public class PetBehavior : MonoBehaviour
         
         // Найти визуальную модель (дочерний объект с рендерером)
         FindVisualModel();
+        
+        // Кэшировать компонент эмоций
+        emotionUI = GetComponent<PetEmotionUI>();
         
         // Сохранить исходный размер после небольшой задержки (чтобы модель успела загрузиться)
         StartCoroutine(SaveOriginalScale());
@@ -188,9 +201,12 @@ public class PetBehavior : MonoBehaviour
         // Если есть целевой кристалл
         if (targetCrystal != null && targetCrystal.IsAlive())
         {
-            float distance = Vector3.Distance(transform.position, targetCrystal.transform.position);
+            // Использовать sqrMagnitude вместо Distance для оптимизации (избегаем вычисления квадратного корня)
+            Vector3 toCrystal = targetCrystal.transform.position - transform.position;
+            float sqrDistance = toCrystal.sqrMagnitude;
+            float sqrMiningDistance = miningDistance * miningDistance;
             
-            if (distance <= miningDistance)
+            if (sqrDistance <= sqrMiningDistance)
             {
                 // Достигли нужного расстояния - начать добычу
                 if (!isMining || !positionLocked)
@@ -211,7 +227,8 @@ public class PetBehavior : MonoBehaviour
                 else
                 {
                     // Сбросить состояние добычи, если расстояние слишком большое
-                    if (distance > miningDistance * 2f)
+                    float sqrMiningDistanceDouble = (miningDistance * 2f) * (miningDistance * 2f);
+                    if (sqrDistance > sqrMiningDistanceDouble)
                     {
                         StopMining();
                     }
@@ -238,12 +255,16 @@ public class PetBehavior : MonoBehaviour
         {
             Vector3 fixedPos = miningPosition;
             fixedPos.y = fixedYPosition;
-            transform.position = fixedPos;
+            // Устанавливать позицию только если она изменилась (оптимизация)
+            if (Vector3.SqrMagnitude(transform.position - fixedPos) > 0.0001f)
+            {
+                transform.position = fixedPos;
+            }
         }
-        else
+        else if (isBoosted || Mathf.Abs(transform.position.y - fixedYPosition) > 0.01f)
         {
-            // Всегда фиксировать позицию Y, чтобы предотвратить смещение при изменении размера модели
-            // Особенно важно при ускорении питомца, когда размер увеличивается
+            // Фиксировать позицию Y только если питомец ускорен или позиция Y изменилась
+            // Это предотвращает смещение при изменении размера модели
             Vector3 pos = transform.position;
             pos.y = fixedYPosition;
             transform.position = pos;
@@ -287,8 +308,7 @@ public class PetBehavior : MonoBehaviour
         // Создать эффект электричества при добыче
         CreateMiningEffect();
         
-        // Показать эмоцию при начале добычи
-        PetEmotionUI emotionUI = GetComponent<PetEmotionUI>();
+        // Показать эмоцию при начале добычи (используем кэшированный компонент)
         if (emotionUI != null)
         {
             emotionUI.ShowMiningStartEmotion();
@@ -303,8 +323,7 @@ public class PetBehavior : MonoBehaviour
         positionLocked = false;
         isMining = false;
         
-        // Скрыть эмоцию добычи
-        PetEmotionUI emotionUI = GetComponent<PetEmotionUI>();
+        // Скрыть эмоцию добычи (используем кэшированный компонент)
         if (emotionUI != null)
         {
             emotionUI.HideEmotion();
@@ -515,10 +534,9 @@ public class PetBehavior : MonoBehaviour
     {
         if (targetCrystal == null || !targetCrystal.IsAlive())
         {
-            // Кристалл уничтожен - показать эмоцию
+            // Кристалл уничтожен - показать эмоцию (используем кэшированный компонент)
             if (targetCrystal != null)
             {
-                PetEmotionUI emotionUI = GetComponent<PetEmotionUI>();
                 if (emotionUI != null)
                 {
                     emotionUI.ShowMiningCompleteEmotion();
@@ -539,8 +557,13 @@ public class PetBehavior : MonoBehaviour
         // Вычислить множитель скорости добычи по редкости
         float rarityMultiplier = GetRarityMiningMultiplier(petData.rarity);
         
-        // Получить множитель карты (1.5x если куплена улучшенная карта)
-        float mapMultiplier = MapUpgradeSystem.IsMapUpgradePurchased() ? 1.5f : 1f;
+        // Получить множитель карты (кэшируем, обновляем раз в секунду вместо каждого кадра)
+        if (Time.time - lastMapMultiplierUpdate >= MAP_MULTIPLIER_UPDATE_INTERVAL)
+        {
+            cachedMapMultiplier = MapUpgradeSystem.IsMapUpgradePurchased() ? 1.5f : 1f;
+            lastMapMultiplierUpdate = Time.time;
+        }
+        float mapMultiplier = cachedMapMultiplier;
         
         // Получить множитель ускорения (1.5x если питомец ускорен)
         float boostMultiplier = isBoosted ? 1.5f : 1f;
@@ -568,14 +591,14 @@ public class PetBehavior : MonoBehaviour
             }
         }
         
-        // Повернуться к кристаллу (используем сохраненную позицию, а не текущую трясущуюся)
-        if (targetCrystal != null)
+        // Повернуться к кристаллу (обновляем поворот не каждый кадр, а раз в 0.1 секунды для оптимизации)
+        if (targetCrystal != null && Time.time - lastRotationUpdate >= ROTATION_UPDATE_INTERVAL)
         {
             // Использовать сохраненную позицию кристалла в момент начала добычи, чтобы питомец не трясся вместе с кристаллом
             Vector3 directionToCrystal = crystalMiningPosition - transform.position;
             directionToCrystal.y = 0; // Игнорировать вертикальную составляющую
             
-            if (directionToCrystal != Vector3.zero)
+            if (directionToCrystal.sqrMagnitude > 0.01f) // Проверка на минимальное расстояние
             {
                 // Вычислить поворот к кристаллу
                 Quaternion targetRotation = Quaternion.LookRotation(directionToCrystal.normalized);
@@ -584,8 +607,8 @@ public class PetBehavior : MonoBehaviour
                 Vector3 currentEuler = transform.rotation.eulerAngles;
                 Vector3 targetEuler = targetRotation.eulerAngles;
                 
-                // Плавно повернуть к кристаллу
-                float yRotation = Mathf.LerpAngle(currentEuler.y, targetEuler.y, Time.deltaTime * 5f);
+                // Плавно повернуть к кристаллу (используем больший шаг, так как обновляем реже)
+                float yRotation = Mathf.LerpAngle(currentEuler.y, targetEuler.y, ROTATION_UPDATE_INTERVAL * 5f);
                 
                 // Применить вращение к визуальной модели, а не к корневому объекту
                 if (visualModelTransform != null && visualModelTransform != transform)
@@ -596,9 +619,11 @@ public class PetBehavior : MonoBehaviour
                 }
                 else
                 {
-                transform.rotation = Quaternion.Euler(currentEuler.x, yRotation, currentEuler.z);
+                    transform.rotation = Quaternion.Euler(currentEuler.x, yRotation, currentEuler.z);
                 }
             }
+            
+            lastRotationUpdate = Time.time;
         }
         
         // Добавлять монеты каждую секунду добычи
@@ -662,8 +687,7 @@ public class PetBehavior : MonoBehaviour
             PetSpeedBoostManager.Instance.OnBoostEffectEnded();
         }
         
-        // Скрыть эмоцию при уничтожении
-        PetEmotionUI emotionUI = GetComponent<PetEmotionUI>();
+        // Скрыть эмоцию при уничтожении (используем кэшированный компонент)
         if (emotionUI != null)
         {
             emotionUI.HideEmotion();

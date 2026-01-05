@@ -25,6 +25,9 @@ public class Crystal : MonoBehaviour
     // Для эффекта тряски
     private Vector3 originalPosition; // Исходная позиция кристалла
     private float shakeTime = 0f; // Время для генерации случайных значений тряски
+    private bool wasBeingMined = false; // Кэш состояния добычи для оптимизации
+    private float lastMiningCheck = 0f; // Время последней проверки добычи
+    private const float MINING_CHECK_INTERVAL = 0.1f; // Проверять добычу раз в 0.1 секунды вместо каждого кадра
     
     private void Start()
     {
@@ -81,8 +84,22 @@ public class Crystal : MonoBehaviour
             originalPosition = transform.position;
         }
         
+        // Оптимизация: проверять добычу не каждый кадр, а раз в 0.1 секунды
+        bool isBeingMined = false;
+        if (Time.time - lastMiningCheck >= MINING_CHECK_INTERVAL)
+        {
+            isBeingMined = IsBeingMined();
+            wasBeingMined = isBeingMined;
+            lastMiningCheck = Time.time;
+        }
+        else
+        {
+            // Использовать кэшированное значение между проверками
+            isBeingMined = wasBeingMined;
+        }
+        
         // Применить эффект тряски, если кристалл добывается
-        if (IsBeingMined())
+        if (isBeingMined)
         {
             ApplyShakeEffect();
         }
@@ -90,7 +107,8 @@ public class Crystal : MonoBehaviour
         {
             // Обновить исходную позицию только если кристалл действительно переместился (не из-за тряски)
             // Это предотвратит постоянный сброс позиции в нулевую
-            if (originalPosition != Vector3.zero)
+            // Оптимизация: проверять только если позиция изменилась
+            if (originalPosition != Vector3.zero && Vector3.SqrMagnitude(transform.position - originalPosition) > 0.0001f)
             {
                 // Вернуть к исходной позиции, если не добывается
                 transform.position = originalPosition;
